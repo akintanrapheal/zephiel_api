@@ -1,6 +1,11 @@
 export type Plan = {
   name: string;
   price: number;
+  /**
+   * Billing unit when the price is charged per something rather than flat —
+   * e.g. "store" renders as "$50 /store/mo". Omit for flat monthly pricing.
+   */
+  unit?: string;
   requests: string;
   rateLimit: string;
   features: string[];
@@ -898,9 +903,135 @@ export const apis: Api[] = [
 }`,
     plans: tiers(13),
   },
+  {
+    slug: "multistore",
+    name: "Multistore",
+    tagline: "Run every storefront you operate from one set of endpoints.",
+    description:
+      "Connect Shopify, WooCommerce, Magento, BigCommerce, Wix, Squarespace, Etsy, Amazon, and eBay storefronts and address them through one normalized schema. Push a price change once and it lands on all of them; pull orders from all of them into one queue. Inventory is reconciled continuously so a unit sold on one channel is decremented everywhere within seconds, and per-store field mapping handles the cases where two platforms disagree about what a product even is.",
+    category: "ecommerce",
+    provider: "Zephiel Labs",
+    logo: "MS",
+    color: "#7c3aed",
+    rating: 4.8,
+    reviews: 640,
+    subscribers: 9400,
+    latency: 190,
+    uptime: 99.97,
+    featured: true,
+    freeTier: true,
+    tags: ["multistore", "ecommerce", "inventory sync", "orders", "shopify"],
+    useCases: [
+      "Selling the same catalog across many channels",
+      "Agencies managing client storefronts",
+      "Franchise and regional store networks",
+      "Migrating between e-commerce platforms",
+    ],
+    endpoints: [
+      { method: "GET", path: "/stores", summary: "List every connected storefront" },
+      { method: "POST", path: "/stores", summary: "Connect a new storefront" },
+      { method: "POST", path: "/sync/inventory", summary: "Reconcile stock levels across stores" },
+      { method: "POST", path: "/sync/catalog", summary: "Push catalog changes to selected stores" },
+      { method: "GET", path: "/orders", summary: "Unified order queue across all stores" },
+      { method: "DELETE", path: "/stores/{id}", summary: "Disconnect a storefront and stop its billing" },
+    ],
+    sampleResponse: `{
+  "success": true,
+  "stores_connected": 7,
+  "billable_stores": 6,
+  "monthly_cost": 300,
+  "currency": "USD",
+  "stores": [
+    { "id": "st_4b91", "platform": "shopify", "name": "Lagos Flagship", "status": "synced", "billable": true },
+    { "id": "st_7de2", "platform": "woocommerce", "name": "Abuja Outlet", "status": "synced", "billable": true },
+    { "id": "st_0aa5", "platform": "etsy", "name": "Handmade Line", "status": "sandbox", "billable": false }
+  ]
+}`,
+    plans: [
+      {
+        name: "Sandbox",
+        price: 0,
+        requests: "1 store, 1,000 calls/mo",
+        rateLimit: "5 req/min",
+        features: [
+          "1 connected storefront",
+          "Read-only catalog and orders",
+          "Test-mode webhooks",
+          "Community support",
+        ],
+      },
+      {
+        name: "Standard",
+        price: 50,
+        unit: "store",
+        requests: "Unlimited calls per store",
+        rateLimit: "300 req/min per store",
+        features: [
+          "$50 per connected store, per month",
+          "Add or remove stores at any time",
+          "Two-way catalog and inventory sync",
+          "Unified order queue and webhooks",
+          "All 9 platform connectors",
+          "Email support",
+        ],
+        popular: true,
+      },
+      {
+        name: "Enterprise",
+        price: 0,
+        requests: "Custom volume",
+        rateLimit: "Custom",
+        features: [
+          "Volume rate below $50 past 25 stores",
+          "Dedicated success manager",
+          "Private and custom connectors",
+          "Custom SLA, DPA, and SSO",
+          "Annual invoicing",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "ecommerce-catalog",
+    name: "E-commerce Catalog",
+    tagline: "Products, variants, carts, and orders behind one REST resource model.",
+    description:
+      "A headless commerce backend you can point any storefront at. Model products with unlimited variants and option axes, track inventory across locations, build carts with promotion and tax rules applied server-side, and take orders through to fulfilment — all without running a commerce platform yourself.",
+    category: "ecommerce",
+    provider: "Northwind Data",
+    logo: "EC",
+    color: "#be123c",
+    rating: 4.6,
+    reviews: 520,
+    subscribers: 13600,
+    latency: 96,
+    uptime: 99.96,
+    freeTier: true,
+    tags: ["catalog", "products", "orders", "cart", "headless"],
+    useCases: ["Headless storefronts", "Mobile shopping apps", "B2B ordering portals", "Marketplace backends"],
+    endpoints: [
+      { method: "GET", path: "/products", summary: "List and filter products" },
+      { method: "POST", path: "/products", summary: "Create a product with variants" },
+      { method: "POST", path: "/carts", summary: "Create a cart and price its lines" },
+      { method: "POST", path: "/orders", summary: "Convert a cart into an order" },
+      { method: "GET", path: "/inventory", summary: "Stock levels by location" },
+    ],
+    sampleResponse: `{
+  "id": "prod_9f21",
+  "title": "Merino Crew Sweater",
+  "status": "active",
+  "variants": [
+    { "sku": "MCS-NVY-M", "price": 89.0, "inventory": 42 },
+    { "sku": "MCS-NVY-L", "price": 89.0, "inventory": 17 }
+  ],
+  "currency": "USD"
+}`,
+    plans: tiers(23),
+  },
 ];
 
 export const getApi = (slug: string) => apis.find((a) => a.slug === slug);
+
 export const featuredApis = () => apis.filter((a) => a.featured);
 export const apisByCategory = (slug: string) => apis.filter((a) => a.category === slug);
 export const providers = () => Array.from(new Set(apis.map((a) => a.provider)));

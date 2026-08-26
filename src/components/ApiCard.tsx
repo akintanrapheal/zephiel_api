@@ -16,7 +16,7 @@ export function Stars({ rating }: { rating: number }) {
 
 export default function ApiCard({ api }: { api: Api }) {
   const cat = categoryBySlug(api.category);
-  const startsAt = api.plans.find((p) => p.price > 0)?.price ?? 0;
+  const entry = api.plans.find((p) => p.price > 0);
 
   return (
     <Link
@@ -61,7 +61,7 @@ export default function ApiCard({ api }: { api: Api }) {
           <span title="Median latency">{api.latency}ms</span>
         </span>
         <span className="font-semibold text-ink">
-          {startsAt === 0 ? "Free" : `from $${startsAt}/mo`}
+          {!entry ? "Free" : `from $${entry.price}/${entry.unit ?? "mo"}`}
         </span>
       </div>
 

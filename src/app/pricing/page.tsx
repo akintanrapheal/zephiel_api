@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PlanCard from "@/components/PlanCard";
-import type { Plan } from "@/data/apis";
+import { apis, type Plan } from "@/data/apis";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -15,7 +15,7 @@ const platformPlans: Plan[] = [
     requests: "100 calls per API/mo",
     rateLimit: "5 req/min",
     features: [
-      "Access to all 24 APIs",
+      `Access to all ${apis.length} APIs`,
       "1 project key",
       "Community support",
       "Basic usage analytics",
@@ -64,7 +64,7 @@ const platformPlans: Plan[] = [
 ];
 
 const comparison: { feature: string; values: [string, string, string, string] }[] = [
-  { feature: "APIs included", values: ["All 24", "All 24", "All 24", "All 24 + private"] },
+  { feature: "APIs included", values: [`All ${apis.length}`, `All ${apis.length}`, `All ${apis.length}`, `All ${apis.length} + private`] },
   { feature: "Monthly calls", values: ["100 / API", "50,000", "500,000", "Custom"] },
   { feature: "Rate limit", values: ["5/min", "60/min", "600/min", "Custom"] },
   { feature: "Project keys", values: ["1", "5", "Unlimited", "Unlimited"] },
@@ -90,6 +90,10 @@ const faqs = [
     a: "Yes. Every listing has its own tiers on its detail page. Platform plans pool calls across all APIs, which is usually cheaper once you use three or more.",
   },
   {
+    q: "How is the Multistore API billed?",
+    a: "Multistore is priced per connected storefront — $50 per store, per month — rather than per call, because its cost scales with stores rather than traffic. It is billed alongside your platform plan, not out of your pooled calls, and is prorated daily when you connect or disconnect a store.",
+  },
+  {
     q: "Do you offer annual billing?",
     a: "Annual billing saves two months on Developer and Team. Enterprise agreements are invoiced annually by default.",
   },
@@ -107,7 +111,7 @@ export default function PricingPage() {
           Pricing that pools across every API
         </h1>
         <p className="mt-4 text-[15px] leading-7 text-muted">
-          One plan covers all 24 APIs. Buy calls once, spend them wherever your product needs them, and
+          One plan covers all {apis.length} APIs. Buy calls once, spend them wherever your product needs them, and
           never negotiate a separate contract again.
         </p>
       </header>

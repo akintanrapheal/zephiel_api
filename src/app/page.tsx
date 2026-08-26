@@ -5,7 +5,7 @@ import ApiCard from "@/components/ApiCard";
 import CodeSamples from "@/components/CodeSamples";
 
 const stats = [
-  { value: "24", label: "Production APIs" },
+  { value: String(apis.length), label: "Production APIs" },
   { value: "3.1M", label: "Calls served daily" },
   { value: "99.98%", label: "Platform uptime" },
   { value: "68ms", label: "Median latency" },
@@ -15,7 +15,7 @@ const steps = [
   {
     n: "01",
     title: "Find the right API",
-    body: "Filter 24 vetted APIs by category, latency, rating, or free tier. Every listing shows real response shapes before you commit.",
+    body: `Filter ${apis.length} vetted APIs by category, latency, rating, or free tier. Every listing shows real response shapes before you commit.`,
   },
   {
     n: "02",
@@ -49,7 +49,7 @@ export default function Home() {
               className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3.5 py-1.5 text-xs font-medium text-muted backdrop-blur transition hover:text-ink"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              24 APIs live — every one with a free tier
+              {apis.length} APIs live — every one with a free tier
               <span aria-hidden>&rarr;</span>
             </Link>
 
@@ -123,7 +123,7 @@ export default function Home() {
             <p className="mt-2 text-sm text-muted">Hand-picked for reliability, documentation quality, and support responsiveness.</p>
           </div>
           <Link href="/marketplace" className="text-sm font-semibold text-brand-600 transition hover:text-brand-700">
-            View all 24 &rarr;
+            View all {apis.length} &rarr;
           </Link>
         </div>
 
@@ -138,7 +138,9 @@ export default function Home() {
       <section className="border-y border-line bg-surface">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Browse by category</h2>
-          <p className="mt-2 text-sm text-muted">Eight categories covering the integrations most products need on day one.</p>
+          <p className="mt-2 text-sm text-muted">
+            {categories.length} categories covering the integrations most products need on day one.
+          </p>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {categories.map((c) => {

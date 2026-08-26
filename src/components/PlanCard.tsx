@@ -17,8 +17,12 @@ export default function PlanCard({ plan }: { plan: Plan }) {
 
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">{plan.name}</h3>
       <p className="mt-3 flex items-baseline gap-1">
-        <span className="text-3xl font-semibold tracking-tight text-ink">{money(plan.price)}</span>
-        {plan.price > 0 && <span className="text-sm text-muted">/mo</span>}
+        <span className="text-3xl font-semibold tracking-tight text-ink">
+          {plan.price === 0 && plan.name === "Enterprise" ? "Custom" : money(plan.price)}
+        </span>
+        {plan.price > 0 && (
+          <span className="text-sm text-muted">{plan.unit ? `/${plan.unit}/mo` : "/mo"}</span>
+        )}
       </p>
 
       <p className="mt-3 text-sm font-medium text-ink">{plan.requests}</p>
@@ -43,7 +47,7 @@ export default function PlanCard({ plan }: { plan: Plan }) {
             : "border border-line text-ink hover:bg-elevated"
         )}
       >
-        {plan.price === 0 ? "Start free" : plan.name === "Enterprise" ? "Contact sales" : "Subscribe"}
+        {plan.name === "Enterprise" ? "Contact sales" : plan.price === 0 ? "Start free" : "Subscribe"}
       </button>
     </div>
   );

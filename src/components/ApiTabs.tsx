@@ -39,6 +39,7 @@ const sampleReviews = [
 
 export default function ApiTabs({ api }: { api: Api }) {
   const [tab, setTab] = useState<Tab>("Overview");
+  const perUnit = api.plans.find((p) => p.unit)?.unit;
 
   return (
     <div>
@@ -135,10 +136,16 @@ export default function ApiTabs({ api }: { api: Api }) {
         {tab === "Pricing" && (
           <div>
             <p className="text-sm text-muted">
-              Plans are billed monthly and can be changed or cancelled at any time. Overage is charged per
-              1,000 requests rather than hard-blocking your traffic.
+              {perUnit
+                ? `Plans are billed monthly per connected ${perUnit}, counted daily and prorated, so adding or removing one mid-month only changes that month's total by the days it was active.`
+                : "Plans are billed monthly and can be changed or cancelled at any time. Overage is charged per 1,000 requests rather than hard-blocking your traffic."}
             </p>
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div
+              className={cn(
+                "mt-6 grid gap-4",
+                api.plans.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-4"
+              )}
+            >
               {api.plans.map((p) => (
                 <PlanCard key={p.name} plan={p} />
               ))}

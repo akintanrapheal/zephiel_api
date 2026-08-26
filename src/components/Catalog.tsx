@@ -70,7 +70,7 @@ export default function Catalog({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search 24 APIs by name, use case, or tag..."
+            placeholder={`Search ${apis.length} ${apis.length === 1 ? "API" : "APIs"} by name, use case, or tag...`}
             className="w-full rounded-xl border border-line bg-surface py-3 pl-11 pr-4 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
           />
         </div>

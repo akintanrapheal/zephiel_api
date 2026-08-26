@@ -33,7 +33,7 @@ export default async function ApiDetailPage({ params }: { params: Promise<{ slug
 
   const cat = categoryBySlug(api.category);
   const related = apis.filter((a) => a.category === api.category && a.slug !== api.slug).slice(0, 3);
-  const startsAt = api.plans.find((p) => p.price > 0)?.price ?? 0;
+  const entry = api.plans.find((p) => p.price > 0);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -91,9 +91,9 @@ export default async function ApiDetailPage({ params }: { params: Promise<{ slug
           <p className="text-xs font-medium uppercase tracking-wider text-muted">Starts at</p>
           <p className="mt-1 flex items-baseline gap-1">
             <span className="text-2xl font-semibold tracking-tight text-ink">
-              {startsAt === 0 ? "Free" : `$${startsAt}`}
+              {!entry ? "Free" : `$${entry.price}`}
             </span>
-            {startsAt > 0 && <span className="text-sm text-muted">/mo</span>}
+            {entry && <span className="text-sm text-muted">{entry.unit ? `/${entry.unit}/mo` : "/mo"}</span>}
           </p>
           <button className="mt-4 w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700">
             Subscribe
