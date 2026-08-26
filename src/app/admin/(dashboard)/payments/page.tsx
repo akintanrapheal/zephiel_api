@@ -1,4 +1,5 @@
 import { listPayments } from "@/server/admin";
+import PageHeader from "@/components/admin/PageHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Payments" };
@@ -18,25 +19,25 @@ export default async function AdminPaymentsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-ink">Payments</h2>
-          <p className="mt-1 text-sm text-muted">{payments.length} transactions via Paystack</p>
-        </div>
-        <p className="text-sm text-muted">
-          Settled:{" "}
-          <span className="font-semibold text-ink">
-            {currency} {total.toLocaleString()}
+      <PageHeader
+        title="Payments"
+        description={`${payments.length} transaction${payments.length === 1 ? "" : "s"} via Paystack`}
+        action={
+          <span className="rounded-xl border border-line px-4 py-2.5 text-sm text-muted">
+            Settled{" "}
+            <span className="font-semibold text-ink">
+              {currency} {total.toLocaleString()}
+            </span>
           </span>
-        </p>
-      </div>
+        }
+      />
 
       {payments.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-line px-5 py-10 text-center text-sm text-muted">
+        <p className="rounded-2xl border border-dashed border-line px-5 py-12 text-center text-sm text-muted">
           No payments yet. They appear here once a customer checks out a paid plan.
         </p>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-line">
+        <div className="overflow-x-auto rounded-2xl border border-line">
           <table className="w-full min-w-[760px] border-collapse text-sm">
             <thead>
               <tr className="bg-elevated text-left">

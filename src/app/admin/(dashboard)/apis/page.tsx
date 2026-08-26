@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listApisForAdmin } from "@/server/admin";
 import { toggleApiPublished } from "@/server/actions/admin";
+import PageHeader, { Empty } from "@/components/admin/PageHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "APIs" };
@@ -10,28 +11,29 @@ export default async function AdminApisPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-ink">APIs</h2>
-          <p className="mt-1 text-sm text-muted">{apis.length} listings</p>
-        </div>
-        <Link
-          href="/admin/apis/new"
-          className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
-        >
-          Add an API
-        </Link>
-      </div>
+      <PageHeader
+        title="APIs"
+        description={`${apis.length} listing${apis.length === 1 ? "" : "s"} in the catalog`}
+        action={
+          <Link
+            href="/admin/apis/new"
+            className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
+          >
+            Add an API
+          </Link>
+        }
+      />
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         {apis.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-muted">
-            No APIs yet. Create one, or run <code className="font-mono">npm run db:seed</code>.
-          </p>
+          <Empty
+            title="No APIs yet"
+            hint="Create one here, or run npm run db:seed to load the starter catalog."
+          />
         ) : (
           <div className="divide-y divide-line">
             {apis.map((a) => (
-              <div key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+              <div key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5 transition hover:bg-elevated/40">
                 <span
                   className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-white"
                   style={{ background: `linear-gradient(135deg, ${a.color}, ${a.color}bb)` }}

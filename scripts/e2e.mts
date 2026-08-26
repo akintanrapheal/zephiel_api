@@ -125,6 +125,11 @@ try {
 
   const adminAsCustomer = await fetch(`${BASE}/admin`, { headers: { cookie }, redirect: "manual" });
   check("customer is redirected away from /admin", adminAsCustomer.status === 307);
+  check(
+    "customer is sent to the admin login, not the site login",
+    (adminAsCustomer.headers.get("location") ?? "").includes("/admin/login"),
+    adminAsCustomer.headers.get("location") ?? ""
+  );
 
   const dashAnon = await fetch(`${BASE}/dashboard`, { redirect: "manual" });
   check("anonymous is redirected away from /dashboard", dashAnon.status === 307);
@@ -132,12 +137,21 @@ try {
   // --------------------------------------------------------- admin login --
   console.log("\nAdmin");
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@zephiel.dev";
-  const adminSignin = await submit("/signin", {
+
+  const loginPage = await fetch(`${BASE}/admin/login`, { redirect: "manual" });
+  check("admin login page is publicly reachable", loginPage.status === 200, `status ${loginPage.status}`);
+
+  // A customer account must be refused at the admin door, not signed in and
+  // then bounced.
+  const customerAtAdmin = await submit("/admin/login", { email, password }, "", "$ACTION_");
+  check("customer credentials are refused at admin login", sessionCookie(customerAtAdmin) === "");
+
+  const adminSignin = await submit("/admin/login", {
     email: adminEmail,
     password: process.env.ADMIN_PASSWORD ?? "zephiel-admin",
   }, "", "$ACTION_");
   const adminCookie = sessionCookie(adminSignin);
-  check("admin can sign in", adminCookie !== "", `status ${adminSignin.status}`);
+  check("admin can sign in at /admin/login", adminCookie !== "", `status ${adminSignin.status}`);
 
   for (const path of [
     "/admin",
@@ -151,8 +165,14 @@ try {
     check(`admin can open ${path}`, res.status === 200, `status ${res.status}`);
   }
 
-  const badLogin = await submit("/signin", { email: adminEmail, password: "wrong-password" }, "", "$ACTION_");
+  const badLogin = await submit("/admin/login", { email: adminEmail, password: "wrong-password" }, "", "$ACTION_");
   check("wrong password does not create a session", sessionCookie(badLogin) === "");
+
+  // Admin pages must not carry the public marketing chrome.
+  const adminHtml = await (await fetch(`${BASE}/admin`, { headers: { cookie: adminCookie } })).text();
+  check("admin page has no site footer", !adminHtml.includes("All rights reserved"));
+  check("admin page has no marketing nav", !adminHtml.includes("Get free key"));
+  check("admin page shows the console chrome", adminHtml.includes("Console"));
 
   // ------------------------------------------------------ admin mutation --
   const slug = `e2e-api-${Date.now()}`;

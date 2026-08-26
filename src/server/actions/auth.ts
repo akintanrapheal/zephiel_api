@@ -80,6 +80,37 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   redirect(user.role === "admin" ? "/admin" : "/dashboard");
 }
 
+/**
+ * Sign-in for the admin console.
+ *
+ * Separate from the customer flow so a non-admin account is refused outright
+ * rather than being signed in and then bounced by the layout guard — and so the
+ * admin entry point never hints at whether an email exists.
+ */
+export async function adminSignIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const parsed = credentials.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!parsed.success) return { error: "Enter a valid email and password." };
+
+  const { email, password } = parsed.data;
+
+  const [user] = await sql<{ id: string; password_hash: string; role: string }[]>`
+    SELECT id, password_hash, role FROM users WHERE email = ${email} LIMIT 1
+  `;
+
+  const ok = user ? await verifyPassword(password, user.password_hash) : false;
+
+  if (!ok || user?.role !== "admin") {
+    return { error: "Those credentials don't have administrator access." };
+  }
+
+  await createSession(user.id);
+  redirect("/admin");
+}
+
 export async function signOut() {
   await destroySession();
   redirect("/");

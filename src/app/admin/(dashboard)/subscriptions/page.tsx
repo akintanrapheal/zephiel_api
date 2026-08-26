@@ -1,4 +1,5 @@
 import { listSubscriptions } from "@/server/admin";
+import PageHeader from "@/components/admin/PageHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Subscriptions" };
@@ -15,15 +16,14 @@ export default async function AdminSubscriptionsPage() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold tracking-tight text-ink">Subscriptions</h2>
-      <p className="mt-1 text-sm text-muted">{subs.length} records</p>
+      <PageHeader title="Subscriptions" description={`${subs.length} record${subs.length === 1 ? "" : "s"}`} />
 
       {subs.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-line px-5 py-10 text-center text-sm text-muted">
-          No subscriptions yet.
+        <p className="rounded-2xl border border-dashed border-line px-5 py-12 text-center text-sm text-muted">
+          No subscriptions yet. They appear the moment a customer picks a plan.
         </p>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-line">
+        <div className="overflow-x-auto rounded-2xl border border-line">
           <table className="w-full min-w-[800px] border-collapse text-sm">
             <thead>
               <tr className="bg-elevated text-left">

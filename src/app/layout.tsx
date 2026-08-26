@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import { getCurrentUser } from "@/lib/auth";
 import { appUrl } from "@/lib/app-url";
 
 export const metadata: Metadata = {
@@ -34,19 +31,17 @@ const themeScript = `
 })();
 `;
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
-
+/**
+ * Document shell only. The public site's navigation and footer live in
+ * (site)/layout.tsx so the admin area can present its own chrome instead.
+ */
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-screen font-sans">
-        <Navbar user={user ? { email: user.email, role: user.role } : null} />
-        <main>{children}</main>
-        <Footer />
-      </body>
+      <body className="min-h-screen font-sans">{children}</body>
     </html>
   );
 }

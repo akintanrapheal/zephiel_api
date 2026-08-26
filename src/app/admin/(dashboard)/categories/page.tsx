@@ -1,6 +1,7 @@
 import { listCategoriesForAdmin } from "@/server/admin";
 import { deleteCategory } from "@/server/actions/admin";
 import CategoryForm from "@/components/admin/CategoryForm";
+import PageHeader from "@/components/admin/PageHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Categories" };
@@ -10,10 +11,10 @@ export default async function AdminCategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">Categories</h2>
-        <p className="mt-1 text-sm text-muted">{categories.length} categories</p>
-      </div>
+      <PageHeader
+        title="Categories"
+        description={`${categories.length} categor${categories.length === 1 ? "y" : "ies"} — click one to edit it`}
+      />
 
       <div className="space-y-3">
         {categories.map((c) => (

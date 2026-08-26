@@ -1,5 +1,6 @@
 import { listUsers } from "@/server/admin";
 import { setUserRole } from "@/server/actions/admin";
+import PageHeader from "@/components/admin/PageHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Users" };
@@ -9,10 +10,9 @@ export default async function AdminUsersPage() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold tracking-tight text-ink">Users</h2>
-      <p className="mt-1 text-sm text-muted">{users.length} accounts</p>
+      <PageHeader title="Users" description={`${users.length} account${users.length === 1 ? "" : "s"}`} />
 
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-line">
+      <div className="overflow-x-auto rounded-2xl border border-line">
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr className="bg-elevated text-left">
