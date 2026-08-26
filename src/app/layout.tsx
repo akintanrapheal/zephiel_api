@@ -3,9 +3,10 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { getCurrentUser } from "@/lib/auth";
+import { appUrl } from "@/lib/app-url";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://zephiel-api.vercel.app"),
+  metadataBase: new URL(appUrl()),
   title: {
     default: "Zephiel API — One marketplace for every API you need",
     template: "%s | Zephiel API",

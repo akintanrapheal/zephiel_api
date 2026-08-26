@@ -44,7 +44,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 | Variable | Required | What it does |
 |---|---|---|
 | `DATABASE_URL` | **yes** | Postgres connection string. Use the *pooled* URL on Vercel. |
-| `NEXT_PUBLIC_APP_URL` | yes in prod | Absolute origin, no trailing slash. Builds Paystack callback URLs and the sitemap. |
+| `APP_URL` | no on Vercel | Absolute origin, no trailing slash. Falls back to Vercel's own domain, then localhost. Server-only, so it takes no `NEXT_PUBLIC_` prefix. |
 | `PAYSTACK_SECRET_KEY` | for paid plans | From dashboard.paystack.com → Settings → API Keys. Free plans work without it. |
 | `PAYSTACK_CURRENCY` | no | `NGN` (default), `GHS`, `ZAR`, `KES`, or `USD` — whatever your Paystack account settles in. |
 | `USD_TO_NGN` | no | Catalog prices are stored in USD; this converts them at charge time. Default `1550`. |
@@ -120,17 +120,14 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 
 1. Push to GitHub and import the repo at [vercel.com/new](https://vercel.com/new).
 2. Add a Neon database under *Storage* (this sets `DATABASE_URL`).
-3. Set `NEXT_PUBLIC_APP_URL` to your deployment URL, plus `PAYSTACK_SECRET_KEY` and
-   `PAYSTACK_CURRENCY` if you want paid checkout.
+3. Add `PAYSTACK_SECRET_KEY` and `PAYSTACK_CURRENCY` if you want paid checkout. `APP_URL` is
+   optional — Vercel supplies the production domain automatically.
 4. Deploy, then run the migration and seed once against the production database:
    ```bash
    DATABASE_URL="<your production url>" npm run db:migrate
    DATABASE_URL="<your production url>" npm run db:seed
    ```
 5. In the Paystack dashboard set the webhook URL to `https://<your-domain>/api/paystack/webhook`.
-
-Also update `metadataBase` in [src/app/layout.tsx](src/app/layout.tsx) to your real domain — the
-sitemap and robots already read `NEXT_PUBLIC_APP_URL`.
 
 ---
 

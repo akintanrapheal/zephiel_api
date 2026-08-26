@@ -6,10 +6,7 @@ import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth";
 import { initializeTransaction, isConfigured, toSubunits, PAYSTACK_CURRENCY } from "@/lib/paystack";
-
-function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-}
+import { appUrl } from "@/lib/app-url";
 
 function periodEnd() {
   const d = new Date();

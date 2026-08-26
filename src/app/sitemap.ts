@@ -1,12 +1,12 @@
 import type { MetadataRoute } from "next";
 import { getApis, getCategories } from "@/server/catalog";
-
-const BASE = (process.env.NEXT_PUBLIC_APP_URL ?? "https://zephiel-api.vercel.app").replace(/\/$/, "");
+import { appUrl } from "@/lib/app-url";
 
 // Regenerated hourly so newly published APIs appear without a redeploy.
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const BASE = appUrl();
   const now = new Date();
 
   const staticRoutes = [
