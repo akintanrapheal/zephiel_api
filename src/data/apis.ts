@@ -1,0 +1,906 @@
+export type Plan = {
+  name: string;
+  price: number;
+  requests: string;
+  rateLimit: string;
+  features: string[];
+  popular?: boolean;
+};
+
+export type Endpoint = {
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  path: string;
+  summary: string;
+};
+
+export type Api = {
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string;
+  category: string;
+  provider: string;
+  logo: string;
+  color: string;
+  rating: number;
+  reviews: number;
+  subscribers: number;
+  latency: number;
+  uptime: number;
+  featured?: boolean;
+  freeTier: boolean;
+  tags: string[];
+  useCases: string[];
+  endpoints: Endpoint[];
+  sampleResponse: string;
+  plans: Plan[];
+};
+
+const tiers = (base: number, unit = "requests"): Plan[] => [
+  {
+    name: "Free",
+    price: 0,
+    requests: `100 ${unit}/mo`,
+    rateLimit: "5 req/min",
+    features: ["Community support", "Standard endpoints", "HTTPS + API key auth"],
+  },
+  {
+    name: "Starter",
+    price: base,
+    requests: `10,000 ${unit}/mo`,
+    rateLimit: "60 req/min",
+    features: ["Email support", "All endpoints", "99.9% uptime SLA", "Usage analytics"],
+  },
+  {
+    name: "Pro",
+    price: base * 4,
+    requests: `250,000 ${unit}/mo`,
+    rateLimit: "600 req/min",
+    features: [
+      "Priority support",
+      "Bulk + batch endpoints",
+      "99.99% uptime SLA",
+      "Webhooks",
+      "Custom rate limits",
+    ],
+    popular: true,
+  },
+  {
+    name: "Enterprise",
+    price: base * 14,
+    requests: `Unlimited ${unit}`,
+    rateLimit: "Custom",
+    features: [
+      "Dedicated success manager",
+      "Private deployment option",
+      "Custom SLA & DPA",
+      "SSO / SAML",
+      "Volume pricing",
+    ],
+  },
+];
+
+export const apis: Api[] = [
+  {
+    slug: "exchange-rates-data",
+    name: "Exchange Rates Data",
+    tagline: "Real-time and historical FX rates for 170 world currencies.",
+    description:
+      "Live foreign exchange rates sourced from more than 15 institutional data providers, updated every 60 seconds. Query current rates, historical time series back to 1999, and convert any amount between any pair of supported currencies with bank-grade accuracy.",
+    category: "finance",
+    provider: "Zephiel Labs",
+    logo: "FX",
+    color: "#2445d6",
+    rating: 4.9,
+    reviews: 2184,
+    subscribers: 41200,
+    latency: 84,
+    uptime: 99.99,
+    featured: true,
+    freeTier: true,
+    tags: ["forex", "currency", "conversion", "historical", "finance"],
+    useCases: ["Multi-currency checkout", "Accounting reconciliation", "Treasury dashboards", "Travel pricing"],
+    endpoints: [
+      { method: "GET", path: "/latest", summary: "Latest rates for a base currency" },
+      { method: "GET", path: "/convert", summary: "Convert an amount between two currencies" },
+      { method: "GET", path: "/timeseries", summary: "Daily rates across a date range" },
+      { method: "GET", path: "/fluctuation", summary: "Change and change percentage between dates" },
+    ],
+    sampleResponse: `{
+  "success": true,
+  "base": "USD",
+  "timestamp": 1756213800,
+  "rates": {
+    "EUR": 0.8624,
+    "GBP": 0.7391,
+    "NGN": 1531.42,
+    "JPY": 147.08
+  }
+}`,
+    plans: tiers(12),
+  },
+  {
+    slug: "ip-intelligence",
+    name: "IP Intelligence",
+    tagline: "Geolocate any IPv4 or IPv6 address with carrier and threat context.",
+    description:
+      "Resolve an IP address to country, region, city, coordinates, timezone, currency, connection type, ASN, and carrier. Includes proxy, VPN, Tor, and hosting-provider detection so you can score risk before a request ever reaches your application.",
+    category: "location",
+    provider: "Zephiel Labs",
+    logo: "IP",
+    color: "#0ea5e9",
+    rating: 4.8,
+    reviews: 3410,
+    subscribers: 68900,
+    latency: 41,
+    uptime: 99.99,
+    featured: true,
+    freeTier: true,
+    tags: ["geolocation", "ip", "asn", "vpn detection", "security"],
+    useCases: ["Fraud scoring", "Content localization", "Compliance geofencing", "Analytics enrichment"],
+    endpoints: [
+      { method: "GET", path: "/lookup/{ip}", summary: "Full intelligence record for one IP" },
+      { method: "POST", path: "/batch", summary: "Look up as many as 1,000 IPs per call" },
+      { method: "GET", path: "/check", summary: "Geolocate the caller's own IP" },
+      { method: "GET", path: "/threat/{ip}", summary: "Proxy, VPN, Tor, and abuse signals" },
+    ],
+    sampleResponse: `{
+  "ip": "102.89.34.17",
+  "country": "Nigeria",
+  "country_code": "NG",
+  "city": "Lagos",
+  "latitude": 6.4531,
+  "longitude": 3.3958,
+  "timezone": "Africa/Lagos",
+  "connection": { "asn": 29465, "isp": "MTN Nigeria" },
+  "threat": { "is_proxy": false, "is_tor": false, "risk_score": 8 }
+}`,
+    plans: tiers(9),
+  },
+  {
+    slug: "email-verification",
+    name: "Email Verification",
+    tagline: "Validate deliverability before you ever hit send.",
+    description:
+      "Syntax, DNS, MX, and SMTP-level verification in a single call. Detects disposable domains, role accounts, catch-all servers, and typos, then returns a 0-100 confidence score so you can decide what to accept at signup.",
+    category: "communication",
+    provider: "Zephiel Labs",
+    logo: "EV",
+    color: "#7c3aed",
+    rating: 4.7,
+    reviews: 1596,
+    subscribers: 33400,
+    latency: 320,
+    uptime: 99.97,
+    featured: true,
+    freeTier: true,
+    tags: ["email", "validation", "deliverability", "smtp", "anti-fraud"],
+    useCases: ["Signup form validation", "List hygiene before campaigns", "Reducing bounce rate", "Lead scoring"],
+    endpoints: [
+      { method: "GET", path: "/verify", summary: "Verify a single email address" },
+      { method: "POST", path: "/bulk", summary: "Submit a list for asynchronous verification" },
+      { method: "GET", path: "/bulk/{jobId}", summary: "Fetch results for a bulk job" },
+    ],
+    sampleResponse: `{
+  "email": "ada@zephiel.dev",
+  "deliverable": true,
+  "score": 96,
+  "checks": {
+    "syntax": true,
+    "mx_found": true,
+    "smtp": true,
+    "disposable": false,
+    "role_account": false,
+    "catch_all": false
+  }
+}`,
+    plans: tiers(15),
+  },
+  {
+    slug: "web-scraper",
+    name: "Web Scraper",
+    tagline: "Render, rotate, and extract any page without managing proxies.",
+    description:
+      "Send a URL and get back clean HTML, plain text, or structured JSON. Handles JavaScript rendering, residential proxy rotation across 190 countries, CAPTCHA solving, and automatic retries so your crawler stops being an infrastructure project.",
+    category: "data",
+    provider: "Northwind Data",
+    logo: "WS",
+    color: "#f97316",
+    rating: 4.6,
+    reviews: 2870,
+    subscribers: 52100,
+    latency: 1240,
+    uptime: 99.95,
+    featured: true,
+    freeTier: true,
+    tags: ["scraping", "crawler", "proxy", "headless", "extraction"],
+    useCases: ["Price monitoring", "SERP tracking", "Market research", "Content aggregation"],
+    endpoints: [
+      { method: "GET", path: "/scrape", summary: "Fetch a rendered page as HTML or text" },
+      { method: "POST", path: "/extract", summary: "Extract fields with CSS or XPath selectors" },
+      { method: "POST", path: "/crawl", summary: "Queue a multi-page crawl job" },
+    ],
+    sampleResponse: `{
+  "url": "https://example.com/product/884",
+  "status": 200,
+  "rendered": true,
+  "data": {
+    "title": "Aeron Chair - Graphite",
+    "price": "1,395.00",
+    "currency": "USD",
+    "in_stock": true
+  },
+  "credits_used": 5
+}`,
+    plans: tiers(29, "credits"),
+  },
+  {
+    slug: "vision-ocr",
+    name: "Vision OCR",
+    tagline: "Extract text, tables, and key-value pairs from any document.",
+    description:
+      "Upload an image or PDF and receive structured text with bounding boxes and confidence scores. Trained on invoices, receipts, IDs, and handwritten forms across 94 languages, with layout-aware table reconstruction.",
+    category: "ai",
+    provider: "Meridian AI",
+    logo: "OC",
+    color: "#db2777",
+    rating: 4.8,
+    reviews: 1120,
+    subscribers: 24800,
+    latency: 890,
+    uptime: 99.96,
+    freeTier: true,
+    tags: ["ocr", "document ai", "invoice", "vision", "extraction"],
+    useCases: ["Invoice processing", "KYC document capture", "Receipt digitization", "Archive search"],
+    endpoints: [
+      { method: "POST", path: "/ocr", summary: "Extract text from an image or PDF" },
+      { method: "POST", path: "/tables", summary: "Reconstruct tables into JSON rows" },
+      { method: "POST", path: "/documents/invoice", summary: "Parse an invoice into typed fields" },
+    ],
+    sampleResponse: `{
+  "pages": 1,
+  "language": "en",
+  "fields": {
+    "invoice_number": "INV-20841",
+    "total": 4820.5,
+    "currency": "USD",
+    "due_date": "2026-09-14"
+  },
+  "confidence": 0.973
+}`,
+    plans: tiers(25),
+  },
+  {
+    slug: "weather-forecast",
+    name: "Weather Forecast",
+    tagline: "Hourly forecasts, 40 years of history, and severe-weather alerts.",
+    description:
+      "A blended model drawing on national meteorological services and proprietary observation stations. Query by coordinates, city, postcode, or IP for current conditions, 14-day hourly forecasts, historical archives, and government alert feeds.",
+    category: "weather",
+    provider: "Zephiel Labs",
+    logo: "WX",
+    color: "#0891b2",
+    rating: 4.7,
+    reviews: 1980,
+    subscribers: 45600,
+    latency: 62,
+    uptime: 99.98,
+    freeTier: true,
+    tags: ["weather", "forecast", "climate", "alerts", "historical"],
+    useCases: ["Logistics routing", "Agriculture planning", "Event scheduling", "Energy demand forecasting"],
+    endpoints: [
+      { method: "GET", path: "/current", summary: "Current conditions for a location" },
+      { method: "GET", path: "/forecast", summary: "Hourly and daily forecast up to 14 days" },
+      { method: "GET", path: "/historical", summary: "Observations back to 1985" },
+      { method: "GET", path: "/alerts", summary: "Active severe weather warnings" },
+    ],
+    sampleResponse: `{
+  "location": { "name": "Lagos", "country": "NG" },
+  "current": {
+    "temp_c": 29.4,
+    "condition": "Partly cloudy",
+    "humidity": 78,
+    "wind_kph": 14.8,
+    "uv": 7
+  }
+}`,
+    plans: tiers(10),
+  },
+  {
+    slug: "pdf-toolkit",
+    name: "PDF Toolkit",
+    tagline: "Generate, merge, split, and sign PDFs over HTTP.",
+    description:
+      "A complete document pipeline as one API. Render HTML or URLs to pixel-accurate PDFs, merge and split files, compress, watermark, fill AcroForms, and apply digital signatures without installing a single native dependency.",
+    category: "media",
+    provider: "Northwind Data",
+    logo: "PD",
+    color: "#dc2626",
+    rating: 4.6,
+    reviews: 940,
+    subscribers: 19700,
+    latency: 640,
+    uptime: 99.95,
+    freeTier: true,
+    tags: ["pdf", "documents", "html to pdf", "merge", "signature"],
+    useCases: ["Invoice generation", "Contract assembly", "Report exports", "Statement delivery"],
+    endpoints: [
+      { method: "POST", path: "/html-to-pdf", summary: "Render HTML or a URL to PDF" },
+      { method: "POST", path: "/merge", summary: "Combine multiple PDFs into one" },
+      { method: "POST", path: "/split", summary: "Split by page ranges or bookmarks" },
+      { method: "POST", path: "/sign", summary: "Apply a digital signature" },
+    ],
+    sampleResponse: `{
+  "success": true,
+  "file_url": "https://cdn.zephiel.dev/f/9f3c1a20.pdf",
+  "pages": 4,
+  "bytes": 184320,
+  "expires_at": "2026-08-27T09:00:00Z"
+}`,
+    plans: tiers(19),
+  },
+  {
+    slug: "phone-lookup",
+    name: "Phone Number Lookup",
+    tagline: "Validate, format, and enrich phone numbers in 232 countries.",
+    description:
+      "Parse any phone number into E.164, national, and international formats, then enrich it with carrier, line type, portability status, and active-line signals drawn from live HLR lookups.",
+    category: "communication",
+    provider: "Zephiel Labs",
+    logo: "PH",
+    color: "#059669",
+    rating: 4.5,
+    reviews: 810,
+    subscribers: 21300,
+    latency: 210,
+    uptime: 99.96,
+    freeTier: true,
+    tags: ["phone", "hlr", "carrier", "validation", "sms"],
+    useCases: ["SMS deliverability", "Signup validation", "CRM enrichment", "Fraud prevention"],
+    endpoints: [
+      { method: "GET", path: "/validate", summary: "Validate and format a number" },
+      { method: "GET", path: "/carrier", summary: "Carrier and line-type lookup" },
+      { method: "POST", path: "/batch", summary: "Validate up to 500 numbers at once" },
+    ],
+    sampleResponse: `{
+  "number": "+2348031234567",
+  "valid": true,
+  "country_code": "NG",
+  "line_type": "mobile",
+  "carrier": "MTN Nigeria",
+  "ported": false
+}`,
+    plans: tiers(14),
+  },
+  {
+    slug: "market-data",
+    name: "Stock Market Data",
+    tagline: "Real-time quotes and fundamentals for 70+ global exchanges.",
+    description:
+      "Streaming and REST access to equities, ETFs, indices, and crypto pairs. Includes intraday OHLCV bars from one minute upward, corporate actions, dividends, earnings calendars, and 30 years of adjusted end-of-day history.",
+    category: "finance",
+    provider: "Meridian AI",
+    logo: "MK",
+    color: "#16a34a",
+    rating: 4.8,
+    reviews: 1640,
+    subscribers: 29800,
+    latency: 58,
+    uptime: 99.99,
+    freeTier: true,
+    tags: ["stocks", "quotes", "ohlcv", "fundamentals", "crypto"],
+    useCases: ["Trading dashboards", "Portfolio analytics", "Backtesting", "Financial reporting"],
+    endpoints: [
+      { method: "GET", path: "/quote", summary: "Real-time quote for one or more symbols" },
+      { method: "GET", path: "/bars", summary: "Intraday and daily OHLCV bars" },
+      { method: "GET", path: "/fundamentals", summary: "Statements, ratios, and metrics" },
+      { method: "GET", path: "/calendar/earnings", summary: "Upcoming earnings dates" },
+    ],
+    sampleResponse: `{
+  "symbol": "AAPL",
+  "price": 241.83,
+  "change": 2.14,
+  "change_pct": 0.89,
+  "volume": 48120933,
+  "market_state": "REGULAR"
+}`,
+    plans: tiers(35),
+  },
+  {
+    slug: "geocoding",
+    name: "Geocoding & Places",
+    tagline: "Turn addresses into coordinates and back again.",
+    description:
+      "Forward and reverse geocoding with rooftop-level precision, plus autocomplete, place search, timezone resolution, and distance-matrix routing. Global coverage assembled from open and commercial datasets and refreshed weekly.",
+    category: "location",
+    provider: "Northwind Data",
+    logo: "GE",
+    color: "#4f46e5",
+    rating: 4.6,
+    reviews: 1230,
+    subscribers: 31500,
+    latency: 74,
+    uptime: 99.97,
+    freeTier: true,
+    tags: ["geocoding", "places", "autocomplete", "routing", "timezone"],
+    useCases: ["Address autocomplete", "Delivery routing", "Store locators", "Territory analysis"],
+    endpoints: [
+      { method: "GET", path: "/forward", summary: "Address or place name to coordinates" },
+      { method: "GET", path: "/reverse", summary: "Coordinates to a formatted address" },
+      { method: "GET", path: "/autocomplete", summary: "Type-ahead address suggestions" },
+      { method: "GET", path: "/timezone", summary: "Timezone and UTC offset for a point" },
+    ],
+    sampleResponse: `{
+  "query": "1 Ozumba Mbadiwe Ave, Victoria Island",
+  "results": [{
+    "formatted": "1 Ozumba Mbadiwe Ave, Victoria Island, Lagos, Nigeria",
+    "latitude": 6.4281,
+    "longitude": 3.4219,
+    "confidence": 0.94
+  }]
+}`,
+    plans: tiers(11),
+  },
+  {
+    slug: "text-intelligence",
+    name: "Text Intelligence",
+    tagline: "Sentiment, entities, summaries, and moderation in one call.",
+    description:
+      "A language understanding endpoint covering sentiment and emotion, named-entity recognition, keyword extraction, abstractive summarization, language detection across 104 languages, and policy-grade content moderation.",
+    category: "ai",
+    provider: "Meridian AI",
+    logo: "TX",
+    color: "#9333ea",
+    rating: 4.7,
+    reviews: 1370,
+    subscribers: 27600,
+    latency: 410,
+    uptime: 99.96,
+    freeTier: true,
+    tags: ["nlp", "sentiment", "moderation", "summarization", "entities"],
+    useCases: ["Review analysis", "Support ticket triage", "UGC moderation", "Newsroom summarization"],
+    endpoints: [
+      { method: "POST", path: "/sentiment", summary: "Document and aspect-level sentiment" },
+      { method: "POST", path: "/entities", summary: "Named entities with linking" },
+      { method: "POST", path: "/summarize", summary: "Abstractive or extractive summary" },
+      { method: "POST", path: "/moderate", summary: "Multi-category safety classification" },
+    ],
+    sampleResponse: `{
+  "sentiment": { "label": "positive", "score": 0.91 },
+  "entities": [
+    { "text": "Lagos", "type": "LOCATION", "confidence": 0.99 }
+  ],
+  "language": "en"
+}`,
+    plans: tiers(22),
+  },
+  {
+    slug: "screenshot",
+    name: "Screenshot",
+    tagline: "Pixel-perfect captures of any URL at any viewport.",
+    description:
+      "Capture full-page or viewport screenshots as PNG, JPEG, WebP, or PDF. Control device emulation, dark mode, scroll behavior, element selectors, ad blocking, and lazy-load waiting, with results cached on a global CDN.",
+    category: "media",
+    provider: "Northwind Data",
+    logo: "SS",
+    color: "#ea580c",
+    rating: 4.5,
+    reviews: 620,
+    subscribers: 14900,
+    latency: 1450,
+    uptime: 99.94,
+    freeTier: true,
+    tags: ["screenshot", "thumbnail", "rendering", "og image", "monitoring"],
+    useCases: ["Link previews", "Visual regression testing", "Social card generation", "Compliance archiving"],
+    endpoints: [
+      { method: "GET", path: "/capture", summary: "Screenshot a URL with query options" },
+      { method: "POST", path: "/capture", summary: "Screenshot with a full options body" },
+      { method: "POST", path: "/batch", summary: "Queue many captures at once" },
+    ],
+    sampleResponse: `{
+  "url": "https://zephiel.dev",
+  "image_url": "https://cdn.zephiel.dev/s/3ac91f.png",
+  "width": 1440,
+  "height": 3820,
+  "cached": false
+}`,
+    plans: tiers(16),
+  },
+  {
+    slug: "breach-check",
+    name: "Breach Check",
+    tagline: "Know when a credential has appeared in a public breach.",
+    description:
+      "Query an index of billions of records from public breaches and combolists using k-anonymity so the plaintext never leaves your infrastructure. Returns breach names, dates, exposed data classes, and severity.",
+    category: "security",
+    provider: "Zephiel Labs",
+    logo: "BC",
+    color: "#b91c1c",
+    rating: 4.9,
+    reviews: 740,
+    subscribers: 18200,
+    latency: 96,
+    uptime: 99.98,
+    freeTier: true,
+    tags: ["breach", "credentials", "k-anonymity", "security", "compliance"],
+    useCases: ["Password reuse blocking", "Account takeover defense", "Security posture reporting", "Onboarding checks"],
+    endpoints: [
+      { method: "GET", path: "/email/{hash}", summary: "Breaches for a hashed email prefix" },
+      { method: "GET", path: "/password/range/{prefix}", summary: "k-anonymity password range query" },
+      { method: "GET", path: "/domain/{domain}", summary: "Exposure summary for a domain" },
+    ],
+    sampleResponse: `{
+  "found": true,
+  "breach_count": 3,
+  "breaches": [
+    { "name": "Collection #1", "date": "2019-01-07", "classes": ["emails", "passwords"] }
+  ],
+  "severity": "high"
+}`,
+    plans: tiers(18),
+  },
+  {
+    slug: "search-results",
+    name: "Search Results",
+    tagline: "Structured SERP data from major search engines.",
+    description:
+      "Real-time search engine results as clean JSON: organic listings, ads, featured snippets, knowledge panels, local packs, images, news, and shopping. Localized by country, language, and device with no proxy management.",
+    category: "data",
+    provider: "Northwind Data",
+    logo: "SR",
+    color: "#0d9488",
+    rating: 4.6,
+    reviews: 1490,
+    subscribers: 26400,
+    latency: 1120,
+    uptime: 99.93,
+    freeTier: true,
+    tags: ["serp", "search", "rank tracking", "seo", "scraping"],
+    useCases: ["Rank tracking", "Competitive research", "Ad monitoring", "Content gap analysis"],
+    endpoints: [
+      { method: "GET", path: "/search", summary: "Organic and paid results for a query" },
+      { method: "GET", path: "/news", summary: "News vertical results" },
+      { method: "GET", path: "/images", summary: "Image vertical results" },
+      { method: "GET", path: "/local", summary: "Map pack and local business results" },
+    ],
+    sampleResponse: `{
+  "query": "best api marketplace",
+  "engine": "google",
+  "organic": [
+    { "position": 1, "title": "Zephiel API", "link": "https://zephiel.dev" }
+  ],
+  "total_results": 48200000
+}`,
+    plans: tiers(27, "searches"),
+  },
+  {
+    slug: "image-processing",
+    name: "Image Processing",
+    tagline: "Resize, optimize, and transform images on the fly.",
+    description:
+      "A transformation pipeline over HTTP: resize, crop with smart focal-point detection, convert between AVIF, WebP, JPEG, and PNG, strip metadata, apply filters, and remove backgrounds, all delivered from an edge cache.",
+    category: "media",
+    provider: "Meridian AI",
+    logo: "IM",
+    color: "#c026d3",
+    rating: 4.7,
+    reviews: 1050,
+    subscribers: 23100,
+    latency: 380,
+    uptime: 99.97,
+    freeTier: true,
+    tags: ["images", "resize", "webp", "background removal", "cdn"],
+    useCases: ["Responsive image delivery", "User avatar pipelines", "Product photo cleanup", "Bandwidth reduction"],
+    endpoints: [
+      { method: "POST", path: "/transform", summary: "Apply a chain of transformations" },
+      { method: "POST", path: "/remove-background", summary: "Cut out the subject from a photo" },
+      { method: "POST", path: "/optimize", summary: "Compress with perceptual quality targets" },
+    ],
+    sampleResponse: `{
+  "output_url": "https://cdn.zephiel.dev/i/7be21c.avif",
+  "format": "avif",
+  "width": 1200,
+  "height": 800,
+  "bytes_saved": 412887
+}`,
+    plans: tiers(17),
+  },
+  {
+    slug: "company-enrichment",
+    name: "Company Enrichment",
+    tagline: "Turn a domain into a full firmographic profile.",
+    description:
+      "Submit a company domain or name and receive industry codes, employee count, revenue band, funding history, technology stack, social profiles, headquarters location, and key decision-maker roles.",
+    category: "data",
+    provider: "Meridian AI",
+    logo: "CE",
+    color: "#1d4ed8",
+    rating: 4.4,
+    reviews: 560,
+    subscribers: 15800,
+    latency: 260,
+    uptime: 99.95,
+    freeTier: true,
+    tags: ["b2b", "firmographics", "enrichment", "sales", "tech stack"],
+    useCases: ["Lead scoring", "CRM enrichment", "Territory planning", "Account research"],
+    endpoints: [
+      { method: "GET", path: "/company", summary: "Enrich by domain or company name" },
+      { method: "GET", path: "/technologies", summary: "Detected technology stack" },
+      { method: "POST", path: "/bulk", summary: "Enrich up to 250 domains per call" },
+    ],
+    sampleResponse: `{
+  "domain": "stripe.com",
+  "name": "Stripe",
+  "industry": "Financial Technology",
+  "employees": 8500,
+  "founded": 2010,
+  "hq": { "city": "South San Francisco", "country": "US" }
+}`,
+    plans: tiers(39),
+  },
+  {
+    slug: "speech-to-text",
+    name: "Speech to Text",
+    tagline: "Accurate transcription with speaker labels in 78 languages.",
+    description:
+      "Batch and streaming transcription with word-level timestamps, speaker diarization, automatic punctuation, custom vocabulary boosting, profanity filtering, and translation into English from any supported source language.",
+    category: "ai",
+    provider: "Meridian AI",
+    logo: "ST",
+    color: "#7e22ce",
+    rating: 4.8,
+    reviews: 890,
+    subscribers: 20400,
+    latency: 1600,
+    uptime: 99.96,
+    freeTier: true,
+    tags: ["transcription", "asr", "diarization", "subtitles", "audio"],
+    useCases: ["Meeting notes", "Podcast subtitles", "Call center QA", "Media archives"],
+    endpoints: [
+      { method: "POST", path: "/transcribe", summary: "Submit audio for transcription" },
+      { method: "GET", path: "/transcribe/{id}", summary: "Poll a transcription job" },
+      { method: "POST", path: "/stream", summary: "Open a realtime streaming session" },
+    ],
+    sampleResponse: `{
+  "id": "tr_8f21ba",
+  "status": "completed",
+  "duration": 812.4,
+  "language": "en",
+  "text": "Welcome to the quarterly review...",
+  "speakers": 3
+}`,
+    plans: tiers(24, "minutes"),
+  },
+  {
+    slug: "crypto-data",
+    name: "Crypto Market Data",
+    tagline: "Prices, order books, and on-chain metrics across 400 exchanges.",
+    description:
+      "Aggregated spot and derivatives pricing for more than 12,000 assets, with normalized order books, funding rates, open interest, and on-chain fundamentals delivered over REST and WebSocket.",
+    category: "finance",
+    provider: "Zephiel Labs",
+    logo: "CR",
+    color: "#f59e0b",
+    rating: 4.6,
+    reviews: 1310,
+    subscribers: 30200,
+    latency: 47,
+    uptime: 99.98,
+    freeTier: true,
+    tags: ["crypto", "exchanges", "order book", "on-chain", "websocket"],
+    useCases: ["Trading bots", "Portfolio trackers", "Risk monitoring", "Research dashboards"],
+    endpoints: [
+      { method: "GET", path: "/price", summary: "Aggregated price for an asset pair" },
+      { method: "GET", path: "/ohlcv", summary: "Candles from one minute to one month" },
+      { method: "GET", path: "/orderbook", summary: "Normalized L2 order book snapshot" },
+      { method: "GET", path: "/onchain/{asset}", summary: "Network and holder metrics" },
+    ],
+    sampleResponse: `{
+  "pair": "BTC/USD",
+  "price": 94218.44,
+  "change_24h_pct": -1.82,
+  "volume_24h": 28419283441,
+  "exchanges_used": 37
+}`,
+    plans: tiers(32),
+  },
+  {
+    slug: "sms-gateway",
+    name: "SMS Gateway",
+    tagline: "Reach 200+ countries with direct carrier routes.",
+    description:
+      "Transactional and OTP messaging with intelligent route selection, delivery receipts, inbound webhooks, alphanumeric sender IDs where supported, and automatic fallback between carriers when a route degrades.",
+    category: "communication",
+    provider: "Northwind Data",
+    logo: "SM",
+    color: "#0284c7",
+    rating: 4.5,
+    reviews: 1180,
+    subscribers: 25700,
+    latency: 190,
+    uptime: 99.97,
+    freeTier: false,
+    tags: ["sms", "otp", "messaging", "delivery receipts", "webhooks"],
+    useCases: ["Two-factor authentication", "Delivery notifications", "Appointment reminders", "Marketing blasts"],
+    endpoints: [
+      { method: "POST", path: "/messages", summary: "Send a single SMS" },
+      { method: "POST", path: "/messages/bulk", summary: "Send to many recipients" },
+      { method: "GET", path: "/messages/{id}", summary: "Delivery status for a message" },
+      { method: "POST", path: "/otp/verify", summary: "Verify a one-time code" },
+    ],
+    sampleResponse: `{
+  "id": "sms_41ba9c",
+  "to": "+2348031234567",
+  "status": "delivered",
+  "segments": 1,
+  "cost": 0.0072,
+  "delivered_at": "2026-08-26T14:02:11Z"
+}`,
+    plans: tiers(20, "messages"),
+  },
+  {
+    slug: "fraud-scoring",
+    name: "Fraud Scoring",
+    tagline: "Score a transaction's risk in under 50 milliseconds.",
+    description:
+      "Combines device fingerprinting, IP reputation, email and phone age, velocity rules, and a gradient-boosted risk model into a single 0-100 score with human-readable reason codes you can show a review team.",
+    category: "security",
+    provider: "Meridian AI",
+    logo: "FR",
+    color: "#e11d48",
+    rating: 4.7,
+    reviews: 690,
+    subscribers: 16400,
+    latency: 44,
+    uptime: 99.99,
+    freeTier: false,
+    tags: ["fraud", "risk", "device fingerprint", "chargeback", "velocity"],
+    useCases: ["Checkout risk review", "Account opening", "Promo abuse prevention", "Chargeback reduction"],
+    endpoints: [
+      { method: "POST", path: "/score", summary: "Score a transaction or signup event" },
+      { method: "POST", path: "/feedback", summary: "Report the true outcome to retrain" },
+      { method: "GET", path: "/rules", summary: "List active velocity rules" },
+    ],
+    sampleResponse: `{
+  "score": 78,
+  "decision": "review",
+  "reasons": [
+    "email_domain_age_under_30_days",
+    "ip_country_mismatch_billing"
+  ],
+  "latency_ms": 41
+}`,
+    plans: tiers(45),
+  },
+  {
+    slug: "timezone-api",
+    name: "Timezone",
+    tagline: "IANA timezones, offsets, and DST transitions anywhere on earth.",
+    description:
+      "Resolve a coordinate, IP, or place name to its IANA zone with the current UTC offset, DST status, next transition timestamp, and localized time formatting, backed by a tzdata mirror updated within hours of each release.",
+    category: "location",
+    provider: "Zephiel Labs",
+    logo: "TZ",
+    color: "#0369a1",
+    rating: 4.4,
+    reviews: 430,
+    subscribers: 12600,
+    latency: 33,
+    uptime: 99.99,
+    freeTier: true,
+    tags: ["timezone", "dst", "tzdata", "scheduling", "utc"],
+    useCases: ["Meeting schedulers", "Global notifications", "Log normalization", "Booking systems"],
+    endpoints: [
+      { method: "GET", path: "/zone", summary: "Timezone for coordinates, IP, or place" },
+      { method: "GET", path: "/convert", summary: "Convert a timestamp between zones" },
+      { method: "GET", path: "/transitions", summary: "Upcoming DST transitions" },
+    ],
+    sampleResponse: `{
+  "zone": "Africa/Lagos",
+  "utc_offset": "+01:00",
+  "dst_active": false,
+  "local_time": "2026-08-26T15:04:22+01:00"
+}`,
+    plans: tiers(8),
+  },
+  {
+    slug: "air-quality",
+    name: "Air Quality",
+    tagline: "Pollutant readings and AQI from 30,000 monitoring stations.",
+    description:
+      "Current, forecast, and historical air quality with PM2.5, PM10, ozone, nitrogen dioxide, sulphur dioxide, and carbon monoxide concentrations, normalized to US EPA and European AQI scales with health recommendations.",
+    category: "weather",
+    provider: "Northwind Data",
+    logo: "AQ",
+    color: "#65a30d",
+    rating: 4.5,
+    reviews: 380,
+    subscribers: 10900,
+    latency: 88,
+    uptime: 99.95,
+    freeTier: true,
+    tags: ["air quality", "aqi", "pm2.5", "pollution", "environment"],
+    useCases: ["Health apps", "Smart home automation", "ESG reporting", "Outdoor event planning"],
+    endpoints: [
+      { method: "GET", path: "/current", summary: "Current AQI and pollutant levels" },
+      { method: "GET", path: "/forecast", summary: "Hourly AQI forecast up to 5 days" },
+      { method: "GET", path: "/stations", summary: "Nearby monitoring stations" },
+    ],
+    sampleResponse: `{
+  "aqi_us": 62,
+  "category": "Moderate",
+  "pollutants": { "pm2_5": 17.8, "pm10": 41.2, "o3": 54.1 },
+  "dominant": "pm2_5"
+}`,
+    plans: tiers(9),
+  },
+  {
+    slug: "translation",
+    name: "Translation",
+    tagline: "Neural translation across 132 languages with glossaries.",
+    description:
+      "Document and string translation with automatic source detection, formality control, custom glossaries for brand terms, HTML and Markdown tag preservation, and batch endpoints tuned for localization pipelines.",
+    category: "ai",
+    provider: "Meridian AI",
+    logo: "TR",
+    color: "#6d28d9",
+    rating: 4.6,
+    reviews: 970,
+    subscribers: 22800,
+    latency: 340,
+    uptime: 99.97,
+    freeTier: true,
+    tags: ["translation", "localization", "i18n", "glossary", "nmt"],
+    useCases: ["App localization", "Support chat translation", "Catalog translation", "Subtitle workflows"],
+    endpoints: [
+      { method: "POST", path: "/translate", summary: "Translate one or many strings" },
+      { method: "POST", path: "/documents", summary: "Translate a whole document file" },
+      { method: "GET", path: "/languages", summary: "Supported language pairs" },
+    ],
+    sampleResponse: `{
+  "detected_source": "en",
+  "target": "fr",
+  "translations": [
+    { "text": "Bienvenue sur la place de marche Zephiel." }
+  ]
+}`,
+    plans: tiers(21, "characters"),
+  },
+  {
+    slug: "vat-validation",
+    name: "VAT & Tax Validation",
+    tagline: "Validate tax IDs and calculate rates for every EU member state.",
+    description:
+      "Real-time VIES-backed VAT number validation with company name and address returns, plus current standard and reduced VAT rates, digital-goods rules, and price calculation endpoints for compliant invoicing.",
+    category: "finance",
+    provider: "Zephiel Labs",
+    logo: "VT",
+    color: "#0f766e",
+    rating: 4.5,
+    reviews: 410,
+    subscribers: 11800,
+    latency: 520,
+    uptime: 99.94,
+    freeTier: true,
+    tags: ["vat", "tax", "vies", "compliance", "invoicing"],
+    useCases: ["B2B checkout", "Invoice compliance", "Reverse-charge handling", "Accounting automation"],
+    endpoints: [
+      { method: "GET", path: "/validate", summary: "Validate a VAT number against VIES" },
+      { method: "GET", path: "/rates", summary: "Current rates by country" },
+      { method: "GET", path: "/price", summary: "Calculate VAT-inclusive pricing" },
+    ],
+    sampleResponse: `{
+  "vat_number": "IE6388047V",
+  "valid": true,
+  "company_name": "GOOGLE IRELAND LIMITED",
+  "country_code": "IE",
+  "standard_rate": 23
+}`,
+    plans: tiers(13),
+  },
+];
+
+export const getApi = (slug: string) => apis.find((a) => a.slug === slug);
+export const featuredApis = () => apis.filter((a) => a.featured);
+export const apisByCategory = (slug: string) => apis.filter((a) => a.category === slug);
+export const providers = () => Array.from(new Set(apis.map((a) => a.provider)));
