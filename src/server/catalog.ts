@@ -62,8 +62,12 @@ function toApi(r: ApiRow): Api {
 /**
  * Plans and endpoints are aggregated in the query so listing the catalog stays
  * a single round trip rather than one query per API.
+ *
+ * Built on call rather than at module load: a tagged template opens the
+ * connection, and `next build` evaluates this module while collecting page
+ * data — before a database necessarily exists.
  */
-const apiSelect = sql`
+const apiSelect = () => sql`
   SELECT
     a.id, a.slug, a.name, a.tagline, a.description,
     c.slug AS category,
@@ -90,7 +94,7 @@ const apiSelect = sql`
 
 export async function getApis({ includeUnpublished = false } = {}): Promise<Api[]> {
   const rows = await sql<ApiRow[]>`
-    ${apiSelect}
+    ${apiSelect()}
     ${includeUnpublished ? sql`` : sql`WHERE a.published = true`}
     ORDER BY a.subscribers DESC, a.name ASC
   `;
@@ -99,7 +103,7 @@ export async function getApis({ includeUnpublished = false } = {}): Promise<Api[
 
 export async function getApiBySlug(slug: string, { includeUnpublished = false } = {}) {
   const rows = await sql<ApiRow[]>`
-    ${apiSelect}
+    ${apiSelect()}
     WHERE a.slug = ${slug}
     ${includeUnpublished ? sql`` : sql`AND a.published = true`}
     LIMIT 1
@@ -108,7 +112,7 @@ export async function getApiBySlug(slug: string, { includeUnpublished = false } 
 }
 
 export async function getApiById(id: string) {
-  const rows = await sql<ApiRow[]>`${apiSelect} WHERE a.id = ${id} LIMIT 1`;
+  const rows = await sql<ApiRow[]>`${apiSelect()} WHERE a.id = ${id} LIMIT 1`;
   return rows[0] ? toApi(rows[0]) : null;
 }
 
@@ -128,7 +132,7 @@ export async function getCategoryBySlug(slug: string) {
 
 export async function getApisByCategory(slug: string): Promise<Api[]> {
   const rows = await sql<ApiRow[]>`
-    ${apiSelect}
+    ${apiSelect()}
     WHERE a.published = true AND c.slug = ${slug}
     ORDER BY a.subscribers DESC
   `;
@@ -137,7 +141,7 @@ export async function getApisByCategory(slug: string): Promise<Api[]> {
 
 export async function getFeaturedApis(): Promise<Api[]> {
   const rows = await sql<ApiRow[]>`
-    ${apiSelect}
+    ${apiSelect()}
     WHERE a.published = true AND a.featured = true
     ORDER BY a.subscribers DESC
     LIMIT 4
