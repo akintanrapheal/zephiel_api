@@ -14,7 +14,12 @@ import { loadEnv } from "./env.mts";
 loadEnv();
 
 const BASE = process.argv[2] ?? "http://localhost:3030";
-const sql = postgres(process.env.DATABASE_URL!, { max: 1, ssl: false });
+const DB_URL = process.env.DATABASE_URL!;
+const sql = postgres(DB_URL, {
+  max: 1,
+  // Match src/lib/db.ts: hosted providers require TLS, local ones don't.
+  ssl: DB_URL.includes("localhost") || DB_URL.includes("127.0.0.1") ? false : "require",
+});
 
 let passed = 0;
 let failed = 0;
