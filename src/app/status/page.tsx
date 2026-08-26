@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { apis } from "@/data/apis";
+import { getApis } from "@/server/catalog";
 
 export const metadata: Metadata = {
   title: "Status",
@@ -24,7 +24,10 @@ const barColor: Record<string, string> = {
   down: "bg-rose-500",
 };
 
-export default function StatusPage() {
+export const revalidate = 60;
+
+export default async function StatusPage() {
+  const apis = await getApis();
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
       <header>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import CodeSamples from "@/components/CodeSamples";
-import { apis } from "@/data/apis";
+import { getApis } from "@/server/catalog";
 
 export const metadata: Metadata = {
   title: "Documentation",
@@ -29,7 +29,10 @@ const errors = [
   { code: "503", name: "upstream_unavailable", desc: "A provider dependency is degraded. Check /status." },
 ];
 
-export default function DocsPage() {
+export const revalidate = 60;
+
+export default async function DocsPage() {
+  const apis = await getApis();
   return (
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
       <div className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-12">

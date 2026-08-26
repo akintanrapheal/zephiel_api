@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Api } from "@/data/apis";
-import { categories } from "@/data/categories";
+import type { Api, Category } from "@/lib/types";
 import ApiCard from "./ApiCard";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +16,12 @@ const sorts: { value: Sort; label: string }[] = [
 
 export default function Catalog({
   apis,
+  categories = [],
   initialCategory = "all",
   lockCategory = false,
 }: {
   apis: Api[];
+  categories?: Category[];
   initialCategory?: string;
   lockCategory?: boolean;
 }) {

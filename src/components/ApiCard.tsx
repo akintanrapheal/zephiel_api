@@ -1,6 +1,5 @@
 import Link from "next/link";
-import type { Api } from "@/data/apis";
-import { categoryBySlug } from "@/data/categories";
+import type { Api } from "@/lib/types";
 import { compact } from "@/lib/utils";
 
 export function Stars({ rating }: { rating: number }) {
@@ -15,7 +14,6 @@ export function Stars({ rating }: { rating: number }) {
 }
 
 export default function ApiCard({ api }: { api: Api }) {
-  const cat = categoryBySlug(api.category);
   const entry = api.plans.find((p) => p.price > 0);
 
   return (
@@ -64,8 +62,6 @@ export default function ApiCard({ api }: { api: Api }) {
           {!entry ? "Free" : `from $${entry.price}/${entry.unit ?? "mo"}`}
         </span>
       </div>
-
-      <span className="sr-only">{cat?.name}</span>
     </Link>
   );
 }

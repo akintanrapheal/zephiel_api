@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
+import { signIn, signUp, type AuthState } from "@/server/actions/auth";
 
 export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
-  const [submitted, setSubmitted] = useState(false);
   const isSignup = mode === "signup";
+  const [state, formAction] = useActionState<AuthState, FormData>(
+    isSignup ? signUp : signIn,
+    null
+  );
 
   return (
     <div className="mx-auto flex max-w-md flex-col px-4 py-20">
@@ -15,34 +20,11 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted">
           {isSignup
-            ? "100 free calls per API every month. No credit card required."
+            ? "Every API has a free tier, and your key is issued the moment you sign up."
             : "Sign in to manage your keys, usage, and subscriptions."}
         </p>
 
-        <div className="mt-6 grid gap-2 sm:grid-cols-2">
-          {["GitHub", "Google"].map((p) => (
-            <button
-              key={p}
-              className="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-elevated"
-            >
-              Continue with {p}
-            </button>
-          ))}
-        </div>
-
-        <div className="my-6 flex items-center gap-3">
-          <span className="h-px flex-1 bg-line" />
-          <span className="text-xs text-muted">or</span>
-          <span className="h-px flex-1 bg-line" />
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setSubmitted(true);
-          }}
-          className="space-y-4"
-        >
+        <form action={formAction} className="mt-6 space-y-4">
           {isSignup && (
             <Field label="Full name" type="text" name="name" placeholder="Ada Okoye" autoComplete="name" />
           )}
@@ -51,31 +33,19 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             label="Password"
             type="password"
             name="password"
-            placeholder="At least 12 characters"
+            minLength={8}
+            placeholder="At least 8 characters"
             autoComplete={isSignup ? "new-password" : "current-password"}
           />
 
-          {!isSignup && (
-            <div className="flex justify-end">
-              <Link href="/signin" className="text-xs font-medium text-brand-600 hover:text-brand-700">
-                Forgot password?
-              </Link>
-            </div>
+          {state?.error && (
+            <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-2.5 text-sm text-rose-600">
+              {state.error}
+            </p>
           )}
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-700"
-          >
-            {isSignup ? "Create account" : "Sign in"}
-          </button>
+          <Submit>{isSignup ? "Create account" : "Sign in"}</Submit>
         </form>
-
-        {submitted && (
-          <p className="mt-4 rounded-xl border border-brand-500/25 bg-brand-500/5 px-4 py-3 text-sm text-muted">
-            This is a demo form — connect an auth provider to make it real.
-          </p>
-        )}
 
         <p className="mt-6 text-center text-sm text-muted">
           {isSignup ? "Already have an account? " : "New to Zephiel? "}
@@ -97,6 +67,19 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         .
       </p>
     </div>
+  );
+}
+
+function Submit({ children }: { children: React.ReactNode }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+    >
+      {pending ? "Please wait..." : children}
+    </button>
   );
 }
 

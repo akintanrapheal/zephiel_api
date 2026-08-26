@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Api } from "@/data/apis";
+import type { Api } from "@/lib/types";
 import CodeSamples from "./CodeSamples";
 import PlanCard from "./PlanCard";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ const sampleReviews = [
   },
 ];
 
-export default function ApiTabs({ api }: { api: Api }) {
+export default function ApiTabs({ api, currentPlan }: { api: Api; currentPlan?: string | null }) {
   const [tab, setTab] = useState<Tab>("Overview");
   const perUnit = api.plans.find((p) => p.unit)?.unit;
 
@@ -64,7 +64,7 @@ export default function ApiTabs({ api }: { api: Api }) {
       </div>
 
       <div className="pt-8">
-        {tab === "Overview" && (
+        <div hidden={tab !== "Overview"}>
           <div className="space-y-8">
             <section>
               <h2 className="text-lg font-semibold tracking-tight text-ink">About this API</h2>
@@ -102,9 +102,9 @@ export default function ApiTabs({ api }: { api: Api }) {
               </pre>
             </section>
           </div>
-        )}
+        </div>
 
-        {tab === "Endpoints" && (
+        <div hidden={tab !== "Endpoints"}>
           <div className="space-y-3">
             {api.endpoints.map((e) => (
               <div
@@ -131,9 +131,9 @@ export default function ApiTabs({ api }: { api: Api }) {
               Rate limits are enforced per plan and reported in <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs">X-RateLimit-Remaining</code>.
             </p>
           </div>
-        )}
+        </div>
 
-        {tab === "Pricing" && (
+        <div hidden={tab !== "Pricing"}>
           <div>
             <p className="text-sm text-muted">
               {perUnit
@@ -147,13 +147,13 @@ export default function ApiTabs({ api }: { api: Api }) {
               )}
             >
               {api.plans.map((p) => (
-                <PlanCard key={p.name} plan={p} />
+                <PlanCard key={p.name} plan={p} apiSlug={api.slug} currentPlan={currentPlan} />
               ))}
             </div>
           </div>
-        )}
+        </div>
 
-        {tab === "Reviews" && (
+        <div hidden={tab !== "Reviews"}>
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-line bg-surface p-6">
               <div>
@@ -198,7 +198,7 @@ export default function ApiTabs({ api }: { api: Api }) {
               </div>
             ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

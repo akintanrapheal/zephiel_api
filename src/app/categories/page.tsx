@@ -1,20 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { categories } from "@/data/categories";
-import { apis } from "@/data/apis";
+import { getApis, getCategories } from "@/server/catalog";
+
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Categories",
   description: "Explore Zephiel APIs grouped by category — finance, geo, AI, weather, media, security, and more.",
 };
 
-export default function CategoriesPage() {
+export default async function CategoriesPage() {
+  const [categories, apis] = await Promise.all([getCategories(), getApis()]);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
       <header className="max-w-2xl">
         <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Categories</h1>
         <p className="mt-3 text-[15px] leading-7 text-muted">
-          Eight families of APIs covering the integrations most teams reach for first.
+          {categories.length} families of APIs covering the integrations most teams reach for first.
         </p>
       </header>
 
@@ -41,6 +44,7 @@ export default function CategoriesPage() {
                     {a.name}
                   </li>
                 ))}
+                {list.length === 0 && <li className="text-xs text-muted">No APIs yet</li>}
               </ul>
               <p className="mt-3 text-xs font-semibold text-brand-600">
                 {list.length} {list.length === 1 ? "API" : "APIs"} &rarr;

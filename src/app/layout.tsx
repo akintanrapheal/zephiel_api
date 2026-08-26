@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://zephiel-api.vercel.app"),
@@ -32,14 +33,16 @@ const themeScript = `
 })();
 `;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-screen font-sans">
-        <Navbar />
+        <Navbar user={user ? { email: user.email, role: user.role } : null} />
         <main>{children}</main>
         <Footer />
       </body>

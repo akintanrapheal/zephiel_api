@@ -1,7 +1,29 @@
-import type { Plan } from "@/data/apis";
+import type { Plan } from "@/lib/types";
 import { cn, money } from "@/lib/utils";
+import { subscribe } from "@/server/actions/subscribe";
 
-export default function PlanCard({ plan }: { plan: Plan }) {
+export default function PlanCard({
+  plan,
+  apiSlug,
+  currentPlan,
+}: {
+  plan: Plan;
+  /** When supplied the card becomes actionable and can be subscribed to. */
+  apiSlug?: string;
+  currentPlan?: string | null;
+}) {
+  const isCurrent = currentPlan != null && currentPlan === plan.name;
+  const isEnterprise = plan.name === "Enterprise";
+  const actionable = Boolean(apiSlug && plan.id) && !isEnterprise;
+
+  const label = isCurrent
+    ? "Current plan"
+    : isEnterprise
+      ? "Contact sales"
+      : plan.price === 0
+        ? "Start free"
+        : "Subscribe";
+
   return (
     <div
       className={cn(
@@ -18,7 +40,7 @@ export default function PlanCard({ plan }: { plan: Plan }) {
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">{plan.name}</h3>
       <p className="mt-3 flex items-baseline gap-1">
         <span className="text-3xl font-semibold tracking-tight text-ink">
-          {plan.price === 0 && plan.name === "Enterprise" ? "Custom" : money(plan.price)}
+          {isEnterprise && plan.price === 0 ? "Custom" : money(plan.price)}
         </span>
         {plan.price > 0 && (
           <span className="text-sm text-muted">{plan.unit ? `/${plan.unit}/mo` : "/mo"}</span>
@@ -39,16 +61,53 @@ export default function PlanCard({ plan }: { plan: Plan }) {
         ))}
       </ul>
 
-      <button
-        className={cn(
-          "mt-6 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
-          plan.popular
-            ? "bg-brand-600 text-white hover:bg-brand-700"
-            : "border border-line text-ink hover:bg-elevated"
-        )}
-      >
-        {plan.name === "Enterprise" ? "Contact sales" : plan.price === 0 ? "Start free" : "Subscribe"}
-      </button>
+      {actionable ? (
+        <form action={subscribe} className="mt-6 space-y-3">
+          <input type="hidden" name="planId" value={plan.id} />
+          <input type="hidden" name="apiSlug" value={apiSlug} />
+
+          {plan.unit && plan.price > 0 && (
+            <label className="block">
+              <span className="text-xs font-medium text-muted">
+                How many {plan.unit}s?
+              </span>
+              <input
+                type="number"
+                name="units"
+                min={1}
+                max={999}
+                defaultValue={1}
+                className="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-brand-400"
+              />
+            </label>
+          )}
+
+          <button
+            type="submit"
+            disabled={isCurrent}
+            className={cn(
+              "w-full rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60",
+              plan.popular
+                ? "bg-brand-600 text-white hover:bg-brand-700"
+                : "border border-line text-ink hover:bg-elevated"
+            )}
+          >
+            {label}
+          </button>
+        </form>
+      ) : (
+        <button
+          disabled={isCurrent}
+          className={cn(
+            "mt-6 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60",
+            plan.popular
+              ? "bg-brand-600 text-white hover:bg-brand-700"
+              : "border border-line text-ink hover:bg-elevated"
+          )}
+        >
+          {label}
+        </button>
+      )}
     </div>
   );
 }

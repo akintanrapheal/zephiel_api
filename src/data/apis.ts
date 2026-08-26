@@ -1,45 +1,6 @@
-export type Plan = {
-  name: string;
-  price: number;
-  /**
-   * Billing unit when the price is charged per something rather than flat —
-   * e.g. "store" renders as "$50 /store/mo". Omit for flat monthly pricing.
-   */
-  unit?: string;
-  requests: string;
-  rateLimit: string;
-  features: string[];
-  popular?: boolean;
-};
+import type { Api, Endpoint, Plan } from "@/lib/types";
 
-export type Endpoint = {
-  method: "GET" | "POST" | "PUT" | "DELETE";
-  path: string;
-  summary: string;
-};
-
-export type Api = {
-  slug: string;
-  name: string;
-  tagline: string;
-  description: string;
-  category: string;
-  provider: string;
-  logo: string;
-  color: string;
-  rating: number;
-  reviews: number;
-  subscribers: number;
-  latency: number;
-  uptime: number;
-  featured?: boolean;
-  freeTier: boolean;
-  tags: string[];
-  useCases: string[];
-  endpoints: Endpoint[];
-  sampleResponse: string;
-  plans: Plan[];
-};
+export type { Api, Endpoint, Plan };
 
 const tiers = (base: number, unit = "requests"): Plan[] => [
   {
@@ -1029,9 +990,3 @@ export const apis: Api[] = [
     plans: tiers(23),
   },
 ];
-
-export const getApi = (slug: string) => apis.find((a) => a.slug === slug);
-
-export const featuredApis = () => apis.filter((a) => a.featured);
-export const apisByCategory = (slug: string) => apis.filter((a) => a.category === slug);
-export const providers = () => Array.from(new Set(apis.map((a) => a.provider)));

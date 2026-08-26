@@ -1,9 +1,6 @@
-export type Category = {
-  slug: string;
-  name: string;
-  blurb: string;
-  icon: string;
-};
+import type { Category } from "@/lib/types";
+
+export type { Category };
 
 export const categories: Category[] = [
   { slug: "finance", name: "Finance & Currency", blurb: "Exchange rates, market data, and payment intelligence.", icon: "M3 17l6-6 4 4 8-8M21 7v5h-5" },
@@ -16,5 +13,3 @@ export const categories: Category[] = [
   { slug: "weather", name: "Weather", blurb: "Forecasts, historical climate, and severe alerts.", icon: "M7 18h9a4 4 0 0 0 .6-7.96A6 6 0 0 0 5 11.5 3.25 3.25 0 0 0 7 18z" },
   { slug: "security", name: "Security", blurb: "Threat intel, breach checks, and fraud scoring.", icon: "M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6l8-3z" },
 ];
-
-export const categoryBySlug = (slug: string) => categories.find((c) => c.slug === slug);

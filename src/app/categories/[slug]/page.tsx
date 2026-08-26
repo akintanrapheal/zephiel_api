@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { categories, categoryBySlug } from "@/data/categories";
-import { apisByCategory } from "@/data/apis";
+import { getApisByCategory, getCategories, getCategoryBySlug } from "@/server/catalog";
 import Catalog from "@/components/Catalog";
 
-export function generateStaticParams() {
-  return categories.map((c) => ({ slug: c.slug }));
-}
+export const revalidate = 60;
 
 export async function generateMetadata({
   params,
@@ -15,17 +12,17 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const cat = categoryBySlug(slug);
+  const cat = await getCategoryBySlug(slug);
   if (!cat) return { title: "Category not found" };
   return { title: cat.name, description: cat.blurb };
 }
 
 export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const cat = categoryBySlug(slug);
+  const cat = await getCategoryBySlug(slug);
   if (!cat) notFound();
 
-  const list = apisByCategory(slug);
+  const [list, categories] = await Promise.all([getApisByCategory(slug), getCategories()]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
@@ -50,7 +47,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
       </header>
 
       <div className="mt-10">
-        <Catalog apis={list} initialCategory={slug} lockCategory />
+        <Catalog apis={list} categories={categories} initialCategory={slug} lockCategory />
       </div>
 
       <section className="mt-16 border-t border-line pt-10">

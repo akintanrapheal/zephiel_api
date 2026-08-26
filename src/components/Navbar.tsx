@@ -14,7 +14,11 @@ const links = [
   { href: "/dashboard", label: "Dashboard" },
 ];
 
-export default function Navbar() {
+export default function Navbar({
+  user,
+}: {
+  user: { email: string; role: string } | null;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -65,18 +69,39 @@ export default function Navbar() {
 
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
-          <Link
-            href="/signin"
-            className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:text-ink sm:block"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
-          >
-            Get free key
-          </Link>
+          {user ? (
+            <>
+              {user.role === "admin" && (
+                <Link
+                  href="/admin"
+                  className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:text-ink sm:block"
+                >
+                  Admin
+                </Link>
+              )}
+              <Link
+                href="/dashboard"
+                className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+              >
+                Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/signin"
+                className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:text-ink sm:block"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+              >
+                Get free key
+              </Link>
+            </>
+          )}
           <button
             onClick={() => setOpen((v) => !v)}
             aria-label="Toggle menu"
@@ -102,9 +127,17 @@ export default function Navbar() {
                 {l.label}
               </Link>
             ))}
-            <Link href="/signin" className="block rounded-lg px-3 py-2.5 text-sm font-medium text-muted sm:hidden">
-              Sign in
-            </Link>
+            {user ? (
+              user.role === "admin" && (
+                <Link href="/admin" className="block rounded-lg px-3 py-2.5 text-sm font-medium text-muted">
+                  Admin
+                </Link>
+              )
+            ) : (
+              <Link href="/signin" className="block rounded-lg px-3 py-2.5 text-sm font-medium text-muted sm:hidden">
+                Sign in
+              </Link>
+            )}
           </nav>
         </div>
       )}

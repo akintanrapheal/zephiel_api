@@ -1,103 +1,164 @@
 # Zephiel API
 
-An API marketplace — browse, compare, and subscribe to production-grade REST APIs behind a single key.
-Built with Next.js 16 (App Router), TypeScript, and Tailwind CSS. Zero external services required to run.
+An API marketplace with a working backend: a Postgres-backed catalog, real accounts and sessions,
+issued API keys, a metered gateway those keys authenticate against, Paystack checkout, and an admin
+area to run all of it.
 
-## Running locally
+Built with Next.js 16 (App Router), TypeScript, Tailwind CSS, and `postgres`.
+
+---
+
+## Quick start
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
+cp .env.example .env.local        # then fill in DATABASE_URL
+npm run db:migrate                # create the schema
+npm run db:seed                   # load 26 APIs, 9 categories, and an admin user
+npm run dev                       # http://localhost:3000
 ```
 
+The seed prints the admin credentials it creates — by default `admin@zephiel.dev` / `zephiel-admin`
+(override with `ADMIN_EMAIL` / `ADMIN_PASSWORD` before seeding). **Change the password after the first
+sign-in on any real deployment.**
+
+### Getting a database
+
+- **Vercel/Neon (recommended):** in the Vercel dashboard go to *Storage → Create Database → Neon*.
+  Vercel injects `DATABASE_URL` automatically. Copy the same pooled URL into `.env.local` for local
+  development, or create a Neon branch for it.
+- **Docker, offline:**
+  ```bash
+  docker run -d --name zephiel-pg -e POSTGRES_PASSWORD=zephiel -e POSTGRES_DB=zephiel \
+    -p 55432:5432 postgres:16-alpine
+  # DATABASE_URL=postgres://postgres:zephiel@localhost:55432/zephiel
+  ```
+
+`db:migrate` is idempotent, and `db:seed` upserts by slug — re-running either is safe and won't
+disturb users, subscriptions, or payments. `npm run db:reset` drops every table (development only).
+
+---
+
+## Environment variables
+
+| Variable | Required | What it does |
+|---|---|---|
+| `DATABASE_URL` | **yes** | Postgres connection string. Use the *pooled* URL on Vercel. |
+| `NEXT_PUBLIC_APP_URL` | yes in prod | Absolute origin, no trailing slash. Builds Paystack callback URLs and the sitemap. |
+| `PAYSTACK_SECRET_KEY` | for paid plans | From dashboard.paystack.com → Settings → API Keys. Free plans work without it. |
+| `PAYSTACK_CURRENCY` | no | `NGN` (default), `GHS`, `ZAR`, `KES`, or `USD` — whatever your Paystack account settles in. |
+| `USD_TO_NGN` | no | Catalog prices are stored in USD; this converts them at charge time. Default `1550`. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | no | Used only by `db:seed` to create the first administrator. |
+
+---
+
+## What works end to end
+
+Verified by `npm run test:e2e` — 32 checks against a running server, driving real HTTP (server
+actions are submitted the way a browser without JavaScript would).
+
+**Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies
+(httpOnly, SameSite=Lax, 30 days). Signing up issues a working API key immediately. Duplicate emails
+are rejected; a failed sign-in reveals nothing about whether the account exists.
+
+**Authorisation.** `/dashboard` requires a session; `/admin` additionally requires `role = 'admin'`.
+Anonymous and customer accounts are redirected, not shown a partial page.
+
+**Subscriptions.** Free plans activate immediately. Paid plans create a `pending` subscription plus a
+`payments` row, then hand off to Paystack Checkout. Per-unit plans (Multistore's $50/store) ask how
+many units and multiply the charge.
+
+**Payments.** Paystack's callback and its `charge.success` webhook both route through one idempotent
+activation path, so whichever arrives first activates the subscription and the second is a no-op.
+Webhook bodies are verified with HMAC-SHA512 over the raw bytes before being parsed.
+
+**The gateway.** `/api/v1/{slug}/{...path}` authenticates the key, checks for an active subscription,
+enforces the quota, increments usage, records a `usage_events` row, and returns rate-limit headers:
+
 ```bash
-npm run build      # production build
-npm start          # serve the production build
+curl -H "X-Zephiel-Key: zk_live_..." http://localhost:3000/api/v1/multistore/stores
 ```
+
+Returns `401` without a valid key, `403` without a subscription, `429` past quota, `401` for a revoked
+key. Those calls are what the dashboard's usage chart and the admin overview are counting.
+
+**Admin.** Create, edit, publish/unpublish, and delete APIs; manage their plans and endpoints inline;
+CRUD categories; promote or demote users (the last remaining admin can't demote themselves); review
+subscriptions and payments. Edits appear on the public marketplace immediately via `revalidatePath`.
+
+### What is *not* wired up
+
+- **The 26 seeded APIs are fictional.** There are no upstream providers, so the gateway returns each
+  listing's stored sample response. Everything around it — auth, quota, metering, headers — is real.
+- **Paid checkout needs your Paystack keys.** Without `PAYSTACK_SECRET_KEY` the subscribe button on a
+  paid plan shows an explanatory message and free plans still work. The e2e suite covers signature
+  verification but not a real card charge.
+- **No password reset or email delivery.**
+- Uptime bars on `/status` and the review lists are still illustrative.
+
+---
+
+## Routes
+
+| Route | |
+|---|---|
+| `/` | Landing page — hero, live code sample, featured and trending APIs, categories |
+| `/marketplace`, `/marketplace/[slug]` | Catalog with search/filter/sort; detail page with plans, endpoints, reviews, subscribe |
+| `/categories`, `/categories/[slug]` | Category index and category-scoped catalog |
+| `/pricing`, `/docs`, `/status` | Platform plans, full API reference, per-API uptime |
+| `/signup`, `/signin` | Real authentication |
+| `/dashboard` | Live usage chart, subscriptions with quota bars, request log, key management |
+| `/admin`, `/admin/apis`, `/admin/categories`, `/admin/users`, `/admin/subscriptions`, `/admin/payments` | Admin area |
+| `/billing/callback` | Paystack return URL |
+
+**JSON endpoints:** `GET /api/apis`, `GET /api/apis/[slug]`, `GET /api/categories`,
+`POST /api/paystack/webhook`, and the gateway at `/api/v1/[slug]/[...path]`.
+
+---
 
 ## Deploying to Vercel
 
-The project needs no environment variables and no build configuration — Vercel detects Next.js
-automatically.
+1. Push to GitHub and import the repo at [vercel.com/new](https://vercel.com/new).
+2. Add a Neon database under *Storage* (this sets `DATABASE_URL`).
+3. Set `NEXT_PUBLIC_APP_URL` to your deployment URL, plus `PAYSTACK_SECRET_KEY` and
+   `PAYSTACK_CURRENCY` if you want paid checkout.
+4. Deploy, then run the migration and seed once against the production database:
+   ```bash
+   DATABASE_URL="<your production url>" npm run db:migrate
+   DATABASE_URL="<your production url>" npm run db:seed
+   ```
+5. In the Paystack dashboard set the webhook URL to `https://<your-domain>/api/paystack/webhook`.
 
-**Option A — dashboard (easiest)**
+Also update `metadataBase` in [src/app/layout.tsx](src/app/layout.tsx) to your real domain — the
+sitemap and robots already read `NEXT_PUBLIC_APP_URL`.
 
-1. Push this folder to a GitHub/GitLab/Bitbucket repo.
-2. Go to [vercel.com/new](https://vercel.com/new) and import the repo.
-3. Leave every setting at its default and click **Deploy**.
+---
 
-**Option B — CLI**
-
-```bash
-npm i -g vercel
-vercel          # preview deployment
-vercel --prod   # production deployment
-```
-
-After the first deploy, update the hardcoded production URL in three places so canonical URLs,
-sitemap, and robots point at your real domain:
-
-- `src/app/layout.tsx` → `metadataBase`
-- `src/app/sitemap.ts` → `BASE`
-- `src/app/robots.ts` → `sitemap`
-
-## What's in the box
-
-| Route | What it does |
-|---|---|
-| `/` | Landing page — hero, live code sample, stats, featured + trending APIs, categories, CTA |
-| `/marketplace` | Full catalog with live search, category pills, free-tier filter, and sorting |
-| `/marketplace/[slug]` | API detail — overview, endpoint reference, pricing tiers, reviews, related APIs |
-| `/categories` | All eight categories with counts |
-| `/categories/[slug]` | Category-scoped catalog |
-| `/pricing` | Platform plans, feature comparison table, FAQ |
-| `/docs` | Auth, quickstart, request/response shape, error table, rate limits, webhooks, SDKs |
-| `/dashboard` | Usage chart, subscriptions with quota bars, recent requests, API key management |
-| `/status` | 90-day uptime history per API |
-| `/signin`, `/signup` | Auth forms (UI only) |
-| `/about`, `/providers`, `/blog`, `/contact`, `/legal/terms` | Supporting marketing pages |
-
-### JSON endpoints
-
-The catalog is also exposed as JSON, so a client app could consume it directly:
+## Project layout
 
 ```
-GET /api/apis?category=finance&q=currency&free=true&limit=10
-GET /api/apis/[slug]
-GET /api/categories
+db/schema.sql              Full DDL — idempotent, the single source of truth
+scripts/                   migrate, seed, reset, and the e2e suite
+src/lib/
+  db.ts                    Pooled postgres client
+  auth.ts                  Password hashing, sessions, API key generation
+  paystack.ts              Initialize, verify, webhook signature, currency conversion
+  types.ts                 Domain types shared by the DB layer and the components
+src/server/
+  catalog.ts               Public catalog queries (one round trip per page)
+  account.ts               Dashboard queries
+  admin.ts                 Admin queries
+  billing.ts               Idempotent payment activation
+  actions/                 Server actions: auth, keys, subscribe, admin
+src/data/                  Seed content only — the app reads from Postgres
 ```
 
-### Also included
+Adding an API through the admin UI is the normal path; `src/data/apis.ts` exists so a fresh database
+starts with something in it.
 
-- Dark mode with no flash on load (inline pre-hydration script + `localStorage` persistence)
-- Per-page SEO metadata, Open Graph tags, generated `sitemap.xml` and `robots.txt`
-- Static generation for all 24 API pages and 8 category pages
-- Fully responsive, keyboard-accessible, mobile nav
+### Security notes
 
-## Customising
-
-Everything the marketplace displays lives in two files:
-
-- **`src/data/apis.ts`** — the 24 listings. Each entry carries its tagline, description, provider,
-  category, rating, latency, tags, use cases, endpoint list, a sample JSON response, and four pricing
-  tiers. Add an object here and it appears everywhere: catalog, search, category page, sitemap, and JSON
-  API, with its own statically generated detail page.
-- **`src/data/categories.ts`** — the eight categories and their icons.
-
-Brand colors and design tokens are in `tailwind.config.ts` (`brand`, `accent`) and
-`src/app/globals.css` (light/dark surface tokens).
-
-## Making it a real product
-
-The UI is complete; these are the pieces that would need a backend:
-
-1. **Auth** — swap `src/components/AuthForm.tsx` for NextAuth, Clerk, or Supabase Auth.
-2. **Billing** — wire the Subscribe buttons to Stripe Checkout; store subscriptions per user.
-3. **Metering + gateway** — a route handler that validates keys, checks quota, proxies to the upstream
-   provider, and records the call.
-4. **Real dashboard data** — replace the sample series in `src/app/dashboard/page.tsx` with queries
-   against your metering store.
-5. **Contact form** — point `ContactForm` at a route handler or a form service.
-
-Sample data in the dashboard and status pages is generated deterministically so server and client
-markup always match — keep that property if you replace it with anything time-based.
+Passwords use scrypt with a per-user salt. API keys are random 160-bit strings stored only as SHA-256
+digests — the plaintext is shown once at creation and cannot be recovered. Sessions are opaque random
+IDs checked against the database on every request, so revocation is immediate. All SQL goes through
+tagged templates, which parameterise every interpolation.

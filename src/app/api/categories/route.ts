@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { categories } from "@/data/categories";
-import { apis } from "@/data/apis";
+import { getCategories, getCategoryCounts } from "@/server/catalog";
+
+export const dynamic = "force-dynamic";
 
 /** GET /api/categories — categories with listing counts. */
-export function GET() {
+export async function GET() {
+  const [categories, counts] = await Promise.all([getCategories(), getCategoryCounts()]);
+
   return NextResponse.json({
     success: true,
     count: categories.length,
@@ -11,7 +14,7 @@ export function GET() {
       slug: c.slug,
       name: c.name,
       blurb: c.blurb,
-      api_count: apis.filter((a) => a.category === c.slug).length,
+      api_count: counts[c.slug] ?? 0,
       url: `/categories/${c.slug}`,
     })),
   });

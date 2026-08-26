@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { apis } from "@/data/apis";
+import { getApis } from "@/server/catalog";
+
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/apis?category=finance&q=currency&free=true&limit=10
  * Public JSON view of the catalog — the same data the marketplace pages render.
  */
-export function GET(request: Request) {
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
   const q = searchParams.get("q")?.trim().toLowerCase();
@@ -13,7 +15,7 @@ export function GET(request: Request) {
   const limitParam = Number(searchParams.get("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : undefined;
 
-  let results = apis.filter((a) => {
+  let results = (await getApis()).filter((a) => {
     if (category && a.category !== category) return false;
     if (free && !a.freeTier) return false;
     if (!q) return true;

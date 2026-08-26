@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { getApi } from "@/data/apis";
+import { getApiBySlug } from "@/server/catalog";
+
+export const dynamic = "force-dynamic";
 
 /** GET /api/apis/:slug — full record for one listing. */
 export async function GET(
@@ -7,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const api = getApi(slug);
+  const api = await getApiBySlug(slug);
 
   if (!api) {
     return NextResponse.json(

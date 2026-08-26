@@ -1,10 +1,12 @@
 import type { MetadataRoute } from "next";
-import { apis } from "@/data/apis";
-import { categories } from "@/data/categories";
+import { getApis, getCategories } from "@/server/catalog";
 
-const BASE = "https://zephiel-api.vercel.app";
+const BASE = (process.env.NEXT_PUBLIC_APP_URL ?? "https://zephiel-api.vercel.app").replace(/\/$/, "");
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const [apis, categories] = await Promise.all([getApis(), getCategories()]);
+  const now = new Date();
+
   const staticRoutes = [
     "",
     "/marketplace",
@@ -19,24 +21,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/legal/terms",
   ].map((path) => ({
     url: `${BASE}${path}`,
-    lastModified: new Date(),
+    lastModified: now,
     changeFrequency: "weekly" as const,
     priority: path === "" ? 1 : 0.7,
   }));
 
-  const apiRoutes = apis.map((a) => ({
-    url: `${BASE}/marketplace/${a.slug}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
-
-  const categoryRoutes = categories.map((c) => ({
-    url: `${BASE}/categories/${c.slug}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.6,
-  }));
-
-  return [...staticRoutes, ...apiRoutes, ...categoryRoutes];
+  return [
+    ...staticRoutes,
+    ...apis.map((a) => ({
+      url: `${BASE}/marketplace/${a.slug}`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    })),
+    ...categories.map((c) => ({
+      url: `${BASE}/categories/${c.slug}`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+    })),
+  ];
 }

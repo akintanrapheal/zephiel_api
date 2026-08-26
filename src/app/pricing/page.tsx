@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PlanCard from "@/components/PlanCard";
-import { apis, type Plan } from "@/data/apis";
+import { countApis } from "@/server/catalog";
+import type { Plan } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description: "Platform plans for Zephiel API — start free, scale to enterprise volume with one bill.",
 };
 
-const platformPlans: Plan[] = [
+const buildPlans = (n: number): Plan[] => [
   {
     name: "Free",
     price: 0,
     requests: "100 calls per API/mo",
     rateLimit: "5 req/min",
     features: [
-      `Access to all ${apis.length} APIs`,
+      `Access to all ${n} APIs`,
       "1 project key",
       "Community support",
       "Basic usage analytics",
@@ -63,8 +64,8 @@ const platformPlans: Plan[] = [
   },
 ];
 
-const comparison: { feature: string; values: [string, string, string, string] }[] = [
-  { feature: "APIs included", values: [`All ${apis.length}`, `All ${apis.length}`, `All ${apis.length}`, `All ${apis.length} + private`] },
+const buildComparison = (n: number): { feature: string; values: [string, string, string, string] }[] => [
+  { feature: "APIs included", values: [`All ${n}`, `All ${n}`, `All ${n}`, `All ${n} + private`] },
   { feature: "Monthly calls", values: ["100 / API", "50,000", "500,000", "Custom"] },
   { feature: "Rate limit", values: ["5/min", "60/min", "600/min", "Custom"] },
   { feature: "Project keys", values: ["1", "5", "Unlimited", "Unlimited"] },
@@ -103,7 +104,13 @@ const faqs = [
   },
 ];
 
-export default function PricingPage() {
+export const revalidate = 60;
+
+export default async function PricingPage() {
+  const apiCount = await countApis();
+  const platformPlans = buildPlans(apiCount);
+  const comparison = buildComparison(apiCount);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
       <header className="mx-auto max-w-2xl text-center">
@@ -111,7 +118,7 @@ export default function PricingPage() {
           Pricing that pools across every API
         </h1>
         <p className="mt-4 text-[15px] leading-7 text-muted">
-          One plan covers all {apis.length} APIs. Buy calls once, spend them wherever your product needs them, and
+          One plan covers all {apiCount} APIs. Buy calls once, spend them wherever your product needs them, and
           never negotiate a separate contract again.
         </p>
       </header>

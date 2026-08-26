@@ -1,21 +1,22 @@
 import Link from "next/link";
-import { apis, featuredApis } from "@/data/apis";
-import { categories } from "@/data/categories";
+import { countApis, getApis, getCategories, getCategoryCounts, getFeaturedApis } from "@/server/catalog";
 import ApiCard from "@/components/ApiCard";
 import CodeSamples from "@/components/CodeSamples";
 
-const stats = [
-  { value: String(apis.length), label: "Production APIs" },
+export const revalidate = 60;
+
+const stats = (apiCount: number) => [
+  { value: String(apiCount), label: "Production APIs" },
   { value: "3.1M", label: "Calls served daily" },
   { value: "99.98%", label: "Platform uptime" },
   { value: "68ms", label: "Median latency" },
 ];
 
-const steps = [
+const steps = (apiCount: number) => [
   {
     n: "01",
     title: "Find the right API",
-    body: `Filter ${apis.length} vetted APIs by category, latency, rating, or free tier. Every listing shows real response shapes before you commit.`,
+    body: `Filter ${apiCount} vetted APIs by category, latency, rating, or free tier. Every listing shows real response shapes before you commit.`,
   },
   {
     n: "02",
@@ -31,9 +32,17 @@ const steps = [
 
 const logos = ["Northwind", "Corvus Bank", "Halyard", "Meridian", "Tessera", "Brightloom", "Kite Freight", "Onward"];
 
-export default function Home() {
-  const featured = featuredApis();
-  const trending = [...apis].sort((a, b) => b.subscribers - a.subscribers).slice(0, 6);
+export default async function Home() {
+  const [featured, all, categories, counts, apiCount] = await Promise.all([
+    getFeaturedApis(),
+    getApis(),
+    getCategories(),
+    getCategoryCounts(),
+    countApis(),
+  ]);
+  const trending = all.slice(0, 6);
+  const statTiles = stats(apiCount);
+  const stepList = steps(apiCount);
 
   return (
     <>
@@ -49,7 +58,7 @@ export default function Home() {
               className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3.5 py-1.5 text-xs font-medium text-muted backdrop-blur transition hover:text-ink"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              {apis.length} APIs live — every one with a free tier
+              {apiCount} APIs live — every one with a free tier
               <span aria-hidden>&rarr;</span>
             </Link>
 
@@ -90,7 +99,7 @@ export default function Home() {
       {/* Stats */}
       <section className="border-y border-line bg-surface">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-12 sm:px-6 lg:grid-cols-4 lg:px-8">
-          {stats.map((s) => (
+          {statTiles.map((s) => (
             <div key={s.label}>
               <p className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">{s.value}</p>
               <p className="mt-1.5 text-sm text-muted">{s.label}</p>
@@ -123,7 +132,7 @@ export default function Home() {
             <p className="mt-2 text-sm text-muted">Hand-picked for reliability, documentation quality, and support responsiveness.</p>
           </div>
           <Link href="/marketplace" className="text-sm font-semibold text-brand-600 transition hover:text-brand-700">
-            View all {apis.length} &rarr;
+            View all {apiCount} &rarr;
           </Link>
         </div>
 
@@ -144,7 +153,7 @@ export default function Home() {
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {categories.map((c) => {
-              const count = apis.filter((a) => a.category === c.slug).length;
+              const count = counts[c.slug] ?? 0;
               return (
                 <Link
                   key={c.slug}
@@ -179,7 +188,7 @@ export default function Home() {
         </div>
 
         <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {steps.map((s) => (
+          {stepList.map((s) => (
             <div key={s.n} className="relative rounded-2xl border border-line bg-surface p-6">
               <span className="font-mono text-xs font-bold text-brand-600">{s.n}</span>
               <h3 className="mt-3 text-[15px] font-semibold tracking-tight text-ink">{s.title}</h3>

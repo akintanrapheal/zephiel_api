@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { categories } from "@/data/categories";
+import { getCategories } from "@/server/catalog";
 
 const columns = [
   {
@@ -34,7 +34,9 @@ const columns = [
   },
 ];
 
-export default function Footer() {
+export default async function Footer() {
+  const categories = await getCategories();
+
   return (
     <footer className="mt-24 border-t border-line bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
