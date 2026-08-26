@@ -10,6 +10,7 @@ import {
   getUsageSeries,
 } from "@/server/account";
 import UsageChart from "@/components/UsageChart";
+import ApiIcon from "@/components/ApiIcon";
 import KeyManager from "@/components/KeyManager";
 import { cancelSubscription } from "@/server/actions/subscribe";
 import { compact } from "@/lib/utils";
@@ -117,12 +118,7 @@ export default async function DashboardPage({
                 return (
                   <div key={s.id} className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <span
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-white"
-                        style={{ background: `linear-gradient(135deg, ${s.apiColor}, ${s.apiColor}bb)` }}
-                      >
-                        {s.apiLogo}
-                      </span>
+                      <ApiIcon api={{ logo: s.apiLogo, color: s.apiColor, icon: s.apiIcon }} size="sm" />
                       <div className="min-w-0 flex-1">
                         <Link
                           href={`/marketplace/${s.apiSlug}`}

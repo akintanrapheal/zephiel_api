@@ -123,11 +123,12 @@ export default async function DocsPage() {
             <h2 className="text-xl font-semibold tracking-tight text-ink">Error reference</h2>
             <div className="mt-5 overflow-x-auto rounded-2xl border border-line">
               <table className="w-full min-w-[560px] border-collapse text-sm">
+              <caption className="sr-only">HTTP error codes returned by the API</caption>
                 <thead>
                   <tr className="bg-elevated">
-                    <th className="px-5 py-3 text-left font-semibold text-ink">Status</th>
-                    <th className="px-5 py-3 text-left font-semibold text-ink">Code</th>
-                    <th className="px-5 py-3 text-left font-semibold text-ink">Meaning</th>
+                    <th scope="col" className="px-5 py-3 text-left font-semibold text-ink">Status</th>
+                    <th scope="col" className="px-5 py-3 text-left font-semibold text-ink">Code</th>
+                    <th scope="col" className="px-5 py-3 text-left font-semibold text-ink">Meaning</th>
                   </tr>
                 </thead>
                 <tbody>

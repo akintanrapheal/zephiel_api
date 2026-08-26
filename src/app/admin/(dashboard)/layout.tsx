@@ -25,6 +25,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-bg">
+      <a href="#admin-main" className="skip-link">
+        Skip to content
+      </a>
       <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 sm:px-6">
           <Sidebar counts={counts} variant="trigger" />
@@ -58,6 +61,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <form action={signOut}>
               <button className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-muted transition hover:text-ink">
                 Sign out
+                <span className="sr-only"> of the admin console</span>
               </button>
             </form>
           </div>
@@ -68,7 +72,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="hidden lg:block">
           <Sidebar counts={counts} variant="rail" />
         </div>
-        <div className="min-w-0 flex-1 pb-16">{children}</div>
+        <main id="admin-main" tabIndex={-1} className="min-w-0 flex-1 pb-16">
+          {children}
+        </main>
       </div>
     </div>
   );

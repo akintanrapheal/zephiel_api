@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth";
-import { initializeTransaction, isConfigured, toSubunits, PAYSTACK_CURRENCY } from "@/lib/paystack";
+import { getPaystackConfig, initializeTransaction, toSubunits } from "@/lib/paystack";
 import { appUrl } from "@/lib/app-url";
 
 function periodEnd() {
@@ -55,7 +55,8 @@ export async function subscribe(formData: FormData) {
   }
 
   // --- paid plan: needs Paystack -------------------------------------------
-  if (!isConfigured()) {
+  const paystack = await getPaystackConfig();
+  if (!paystack.secretKey) {
     redirect(`/marketplace/${apiSlug}?error=payments-unconfigured`);
   }
 
@@ -69,11 +70,11 @@ export async function subscribe(formData: FormData) {
   `;
 
   const reference = `zph_${randomBytes(12).toString("hex")}`;
-  const amount = toSubunits(price * billableUnits);
+  const amount = toSubunits(price * billableUnits, paystack);
 
   await sql`
     INSERT INTO payments (user_id, subscription_id, reference, amount, currency, status)
-    VALUES (${user.id}, ${subscription.id}, ${reference}, ${amount / 100}, ${PAYSTACK_CURRENCY}, 'pending')
+    VALUES (${user.id}, ${subscription.id}, ${reference}, ${amount / 100}, ${paystack.currency}, 'pending')
   `;
 
   let authorizationUrl: string;
@@ -83,6 +84,7 @@ export async function subscribe(formData: FormData) {
       amountSubunits: amount,
       reference,
       callbackUrl: `${appUrl()}/billing/callback`,
+      currency: paystack.currency,
       metadata: { userId: user.id, subscriptionId: subscription.id, planId: plan.id, apiSlug },
     });
     authorizationUrl = init.authorizationUrl;

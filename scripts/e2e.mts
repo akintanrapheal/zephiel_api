@@ -160,6 +160,7 @@ try {
     "/admin/users",
     "/admin/subscriptions",
     "/admin/payments",
+    "/admin/settings",
   ]) {
     const res = await fetch(`${BASE}${path}`, { headers: { cookie: adminCookie }, redirect: "manual" });
     check(`admin can open ${path}`, res.status === 200, `status ${res.status}`);
@@ -207,6 +208,56 @@ try {
     "new API appears in the public catalog",
     listedJson.data?.some((a: { slug: string }) => a.slug === slug)
   );
+
+  // ------------------------------------------------------------ settings --
+  const settingsHtml = await (
+    await fetch(`${BASE}/admin/settings`, { headers: { cookie: adminCookie } })
+  ).text();
+  check("settings page exposes the Paystack key field", settingsHtml.includes('name="secretKey"'));
+  check("secret key field is a password input", /name="secretKey"[^>]*type="password"|type="password"[^>]*name="secretKey"/.test(settingsHtml));
+  check("settings page shows the webhook URL", settingsHtml.includes("/api/paystack/webhook"));
+
+  // A bogus key must be rejected before anything is stored.
+  const bogusKey = await submit("/admin/settings", {
+    secretKey: "not-a-real-key",
+    currency: "NGN",
+    usdToNgn: "1550",
+  }, adminCookie, 'name="secretKey"');
+  const [stored] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM settings WHERE key = 'paystack_secret_key' AND value <> ''
+  `;
+  check("malformed Paystack key is refused", Number(stored.c) === 0, `status ${bogusKey.status}`);
+
+  // Non-secret settings still save.
+  await submit("/admin/settings", { currency: "USD", usdToNgn: "1600" }, adminCookie, 'name="secretKey"');
+  const [cur] = await sql<{ value: string }[]>`
+    SELECT value FROM settings WHERE key = 'paystack_currency' LIMIT 1
+  `;
+  check("currency setting persists", cur?.value === "USD", cur?.value ?? "(unset)");
+  await sql`DELETE FROM settings WHERE key IN ('paystack_currency','usd_to_ngn')`;
+
+  // ---------------------------------------------------------------- icons --
+  const [iconRow] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM apis WHERE icon <> ''
+  `;
+  check("seeded APIs carry icons", Number(iconRow.c) >= 26, `${iconRow.c} with icons`);
+
+  const cardHtml = await (await fetch(`${BASE}/marketplace`)).text();
+  check("catalog cards render icon glyphs", (cardHtml.match(/<svg/g) ?? []).length > 30);
+
+  const homeHtml = await (await fetch(`${BASE}/`)).text();
+  check("home shows the brand logo strip", homeHtml.includes("Trusted by engineering teams at"));
+  check("brand marks are rendered as logos", homeHtml.includes("Brightloom"));
+
+  // ----------------------------------------------------------- a11y basics --
+  check("site pages expose a skip link", homeHtml.includes("Skip to content"));
+  check("site has a main landmark", homeHtml.includes('id="main"'));
+  const adminA11y = await (await fetch(`${BASE}/admin`, { headers: { cookie: adminCookie } })).text();
+  check("admin exposes a skip link", adminA11y.includes("Skip to content"));
+  check("admin nav is labelled", adminA11y.includes('aria-label="Admin sections"'));
+  const usersHtml = await (await fetch(`${BASE}/admin/users`, { headers: { cookie: adminCookie } })).text();
+  check("admin tables use column scopes", usersHtml.includes('scope="col"'));
+  check("admin tables have captions", usersHtml.includes("<caption"));
 
   // ------------------------------------------------------- subscription --
   console.log("\nSubscription & gateway");

@@ -61,19 +61,20 @@ try {
 
     const [api] = await sql<{ id: string }[]>`
       INSERT INTO apis (
-        slug, name, tagline, description, category_id, provider, logo, color,
+        slug, name, tagline, description, category_id, provider, logo, icon, color,
         rating, reviews, subscribers, latency, uptime, featured, free_tier,
         published, tags, use_cases, sample_response
       ) VALUES (
         ${a.slug}, ${a.name}, ${a.tagline}, ${a.description}, ${cat?.id ?? null},
-        ${a.provider}, ${a.logo}, ${a.color}, ${a.rating}, ${a.reviews},
+        ${a.provider}, ${a.logo}, ${a.icon ?? ""}, ${a.color}, ${a.rating}, ${a.reviews},
         ${a.subscribers}, ${a.latency}, ${a.uptime}, ${a.featured ?? false},
         ${a.freeTier}, true, ${a.tags}, ${a.useCases}, ${a.sampleResponse}
       )
       ON CONFLICT (slug) DO UPDATE SET
         name = EXCLUDED.name, tagline = EXCLUDED.tagline,
         description = EXCLUDED.description, category_id = EXCLUDED.category_id,
-        provider = EXCLUDED.provider, logo = EXCLUDED.logo, color = EXCLUDED.color,
+        provider = EXCLUDED.provider, logo = EXCLUDED.logo, icon = EXCLUDED.icon,
+        color = EXCLUDED.color,
         rating = EXCLUDED.rating, reviews = EXCLUDED.reviews,
         subscribers = EXCLUDED.subscribers, latency = EXCLUDED.latency,
         uptime = EXCLUDED.uptime, featured = EXCLUDED.featured,

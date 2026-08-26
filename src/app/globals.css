@@ -39,6 +39,51 @@ body {
   color: #fff;
 }
 
+/*
+ * A visible focus ring on every interactive element. :focus-visible keeps it
+ * off mouse clicks while guaranteeing keyboard users can always see where
+ * they are.
+ */
+:focus-visible {
+  outline: 2px solid #3660f0;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.dark :focus-visible {
+  outline-color: #8fb0ff;
+}
+
+/* Skip link: off-screen until focused. */
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 100;
+  border-radius: 0.5rem;
+  background: #2445d6;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 .grid-bg {
   background-image:
     linear-gradient(to right, rgb(var(--line) / 0.5) 1px, transparent 1px),

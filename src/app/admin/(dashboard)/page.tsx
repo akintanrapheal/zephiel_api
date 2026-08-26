@@ -15,10 +15,11 @@ const icons = {
 };
 
 export default async function AdminOverviewPage() {
-  const [stats, topApis, payments] = await Promise.all([
+  const [stats, topApis, payments, paystackReady] = await Promise.all([
     getAdminStats(),
     getTopApisByUsage(),
     listPayments(),
+    isConfigured(),
   ]);
 
   const recent = payments.slice(0, 6);
@@ -40,15 +41,18 @@ export default async function AdminOverviewPage() {
         }
       />
 
-      {!isConfigured() && (
+      {!paystackReady && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600">
             <path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <p className="text-sm text-muted">
             <span className="font-semibold text-ink">Paystack is not configured.</span> Free plans still
-            activate, but paid checkout is unavailable until{" "}
-            <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs">PAYSTACK_SECRET_KEY</code> is set.
+            activate, but paid checkout is unavailable until a secret key is set in{" "}
+            <Link href="/admin/settings" className="font-semibold text-brand-600 underline">
+              Settings
+            </Link>
+            .
           </p>
         </div>
       )}

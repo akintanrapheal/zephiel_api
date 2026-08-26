@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listApisForAdmin } from "@/server/admin";
 import { toggleApiPublished } from "@/server/actions/admin";
 import PageHeader, { Empty } from "@/components/admin/PageHeader";
+import ApiIcon from "@/components/ApiIcon";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "APIs" };
@@ -34,12 +35,7 @@ export default async function AdminApisPage() {
           <div className="divide-y divide-line">
             {apis.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5 transition hover:bg-elevated/40">
-                <span
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-white"
-                  style={{ background: `linear-gradient(135deg, ${a.color}, ${a.color}bb)` }}
-                >
-                  {a.logo}
-                </span>
+                <ApiIcon api={a} size="sm" />
 
                 <div className="min-w-0 flex-1">
                   <Link

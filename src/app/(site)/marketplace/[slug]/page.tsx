@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import ApiTabs from "@/components/ApiTabs";
 import ApiCard, { Stars } from "@/components/ApiCard";
+import ApiIcon from "@/components/ApiIcon";
 import { compact } from "@/lib/utils";
 
 export const revalidate = 60;
@@ -88,12 +89,7 @@ export default async function ApiDetailPage({
       )}
 
       <header className="mt-6 flex flex-col gap-6 rounded-3xl border border-line bg-surface p-6 sm:p-8 lg:flex-row lg:items-start">
-        <span
-          className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white"
-          style={{ background: `linear-gradient(135deg, ${api.color}, ${api.color}bb)` }}
-        >
-          {api.logo}
-        </span>
+        <ApiIcon api={api} size="lg" />
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">

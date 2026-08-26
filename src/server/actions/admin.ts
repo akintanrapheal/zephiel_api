@@ -101,6 +101,7 @@ const apiSchema = z.object({
   categoryId: z.string().trim().optional(),
   provider: z.string().trim().max(120),
   logo: z.string().trim().max(4),
+  icon: z.string().trim().max(40).optional(),
   color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Colour must be a hex value like #2445d6."),
   rating: z.coerce.number().min(0).max(5),
   reviews: z.coerce.number().int().min(0),
@@ -121,6 +122,7 @@ export async function saveApi(_prev: FormState, formData: FormData): Promise<For
     categoryId: str(formData.get("categoryId")),
     provider: str(formData.get("provider")) ?? "",
     logo: str(formData.get("logo")) ?? "",
+    icon: str(formData.get("icon")) ?? "",
     color: str(formData.get("color")) ?? "#2445d6",
     rating: formData.get("rating") || 5,
     reviews: formData.get("reviews") || 0,
@@ -149,7 +151,7 @@ export async function saveApi(_prev: FormState, formData: FormData): Promise<For
         UPDATE apis SET
           slug = ${a.slug}, name = ${a.name}, tagline = ${a.tagline},
           description = ${a.description}, category_id = ${categoryId},
-          provider = ${a.provider}, logo = ${a.logo}, color = ${a.color},
+          provider = ${a.provider}, logo = ${a.logo}, icon = ${a.icon ?? ""}, color = ${a.color},
           rating = ${a.rating}, reviews = ${a.reviews}, subscribers = ${a.subscribers},
           latency = ${a.latency}, uptime = ${a.uptime}, featured = ${featured},
           free_tier = ${freeTier}, published = ${published}, tags = ${tags},
@@ -159,12 +161,12 @@ export async function saveApi(_prev: FormState, formData: FormData): Promise<For
     } else {
       const [row] = await sql<{ id: string }[]>`
         INSERT INTO apis (
-          slug, name, tagline, description, category_id, provider, logo, color,
+          slug, name, tagline, description, category_id, provider, logo, icon, color,
           rating, reviews, subscribers, latency, uptime, featured, free_tier,
           published, tags, use_cases, sample_response
         ) VALUES (
           ${a.slug}, ${a.name}, ${a.tagline}, ${a.description}, ${categoryId},
-          ${a.provider}, ${a.logo}, ${a.color}, ${a.rating}, ${a.reviews},
+          ${a.provider}, ${a.logo}, ${a.icon ?? ""}, ${a.color}, ${a.rating}, ${a.reviews},
           ${a.subscribers}, ${a.latency}, ${a.uptime}, ${featured}, ${freeTier},
           ${published}, ${tags}, ${useCases}, ${a.sampleResponse}
         )

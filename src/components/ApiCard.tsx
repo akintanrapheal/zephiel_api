@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Api } from "@/lib/types";
 import { compact } from "@/lib/utils";
+import ApiIcon from "./ApiIcon";
 
 export function Stars({ rating }: { rating: number }) {
   return (
@@ -22,12 +23,7 @@ export default function ApiCard({ api }: { api: Api }) {
       className="group flex h-full flex-col rounded-2xl border border-line bg-surface p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lift"
     >
       <div className="flex items-start gap-3.5">
-        <span
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[13px] font-bold text-white"
-          style={{ background: `linear-gradient(135deg, ${api.color}, ${api.color}bb)` }}
-        >
-          {api.logo}
-        </span>
+        <ApiIcon api={api} size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-[15px] font-semibold tracking-tight text-ink">{api.name}</h3>

@@ -8,8 +8,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
   return (
     <>
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
       <Navbar user={user ? { email: user.email, role: user.role } : null} />
-      <main>{children}</main>
+      <main id="main" tabIndex={-1}>
+        {children}
+      </main>
       <Footer />
     </>
   );

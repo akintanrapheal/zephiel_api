@@ -45,16 +45,17 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 |---|---|---|
 | `DATABASE_URL` | **yes** | Postgres connection string. Use the *pooled* URL on Vercel. |
 | `APP_URL` | no on Vercel | Absolute origin, no trailing slash. Falls back to Vercel's own domain, then localhost. Server-only, so it takes no `NEXT_PUBLIC_` prefix. |
-| `PAYSTACK_SECRET_KEY` | for paid plans | From dashboard.paystack.com → Settings → API Keys. Free plans work without it. |
+| `PAYSTACK_SECRET_KEY` | for paid plans | Optional — the key can instead be set in the admin console at /admin/settings, which takes precedence. Free plans work without either. |
 | `PAYSTACK_CURRENCY` | no | `NGN` (default), `GHS`, `ZAR`, `KES`, or `USD` — whatever your Paystack account settles in. |
 | `USD_TO_NGN` | no | Catalog prices are stored in USD; this converts them at charge time. Default `1550`. |
+| `SETTINGS_KEY` | recommended | Encrypts secrets stored from the admin console (AES-256-GCM). Falls back to deriving from `DATABASE_URL`, which breaks if the database password is rotated. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | no | Used only by `db:seed` to create the first administrator. |
 
 ---
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 32 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 54 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies
@@ -82,6 +83,8 @@ curl -H "X-Zephiel-Key: zk_live_..." http://localhost:3000/api/v1/multistore/sto
 Returns `401` without a valid key, `403` without a subscription, `429` past quota, `401` for a revoked
 key. Those calls are what the dashboard's usage chart and the admin overview are counting.
 
+**Settings.** Paystack credentials are editable at `/admin/settings` — the key is verified against Paystack before it is saved, stored encrypted, never displayed again, and takes precedence over the environment variable. The page also surfaces the webhook URL to copy and a connection test.
+
 **Admin.** Create, edit, publish/unpublish, and delete APIs; manage their plans and endpoints inline;
 CRUD categories; promote or demote users (the last remaining admin can't demote themselves); review
 subscriptions and payments. Edits appear on the public marketplace immediately via `revalidatePath`.
@@ -108,7 +111,8 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 | `/pricing`, `/docs`, `/status` | Platform plans, full API reference, per-API uptime |
 | `/signup`, `/signin` | Real authentication |
 | `/dashboard` | Live usage chart, subscriptions with quota bars, request log, key management |
-| `/admin`, `/admin/apis`, `/admin/categories`, `/admin/users`, `/admin/subscriptions`, `/admin/payments` | Admin area |
+| `/admin/login` | Administrator sign-in, separate from customer auth |
+| `/admin`, `/admin/apis`, `/admin/categories`, `/admin/users`, `/admin/subscriptions`, `/admin/payments`, `/admin/settings` | Admin console |
 | `/billing/callback` | Paystack return URL |
 
 **JSON endpoints:** `GET /api/apis`, `GET /api/apis/[slug]`, `GET /api/categories`,
@@ -141,6 +145,8 @@ src/lib/
   auth.ts                  Password hashing, sessions, API key generation
   paystack.ts              Initialize, verify, webhook signature, currency conversion
   types.ts                 Domain types shared by the DB layer and the components
+  settings.ts              Encrypted runtime settings (admin-editable)
+  icons.ts                 Icon registry for listings
 src/server/
   catalog.ts               Public catalog queries (one round trip per page)
   account.ts               Dashboard queries

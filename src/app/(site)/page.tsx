@@ -2,6 +2,7 @@ import Link from "next/link";
 import { countApis, getApis, getCategories, getCategoryCounts, getFeaturedApis } from "@/server/catalog";
 import ApiCard from "@/components/ApiCard";
 import CodeSamples from "@/components/CodeSamples";
+import BrandMarquee from "@/components/BrandMarks";
 
 export const revalidate = 60;
 
@@ -29,8 +30,6 @@ const steps = (apiCount: number) => [
     body: "Start on a free tier, watch usage in the dashboard, and move to a paid plan the moment traffic justifies it.",
   },
 ];
-
-const logos = ["Northwind", "Corvus Bank", "Halyard", "Meridian", "Tessera", "Brightloom", "Kite Freight", "Onward"];
 
 export default async function Home() {
   const [featured, all, categories, counts, apiCount] = await Promise.all([
@@ -108,21 +107,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Logo marquee */}
-      <section className="overflow-hidden py-10">
-        <p className="text-center text-xs font-medium uppercase tracking-wider text-muted">
-          Trusted by engineering teams at
-        </p>
-        <div className="relative mt-6 flex overflow-hidden">
-          <div className="flex shrink-0 animate-marquee items-center gap-14 pr-14">
-            {[...logos, ...logos].map((l, i) => (
-              <span key={i} className="whitespace-nowrap text-lg font-semibold tracking-tight text-muted/60">
-                {l}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+      <BrandMarquee label="Trusted by engineering teams at" />
 
       {/* Featured */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">

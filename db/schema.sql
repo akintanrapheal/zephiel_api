@@ -158,3 +158,19 @@ CREATE TABLE IF NOT EXISTS usage_events (
 
 CREATE INDEX IF NOT EXISTS usage_user_created_idx ON usage_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS usage_api_idx          ON usage_events(api_id);
+
+-- ------------------------------------------------------------- settings --
+
+-- Runtime configuration editable from the admin console. Secret values are
+-- stored encrypted (see src/lib/settings.ts); non-secrets are plaintext.
+CREATE TABLE IF NOT EXISTS settings (
+  key        text PRIMARY KEY,
+  value      text NOT NULL DEFAULT '',
+  is_secret  boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Per-listing icon, stored as a key into the registry in src/lib/icons.ts.
+-- Falls back to the two-letter monogram when empty.
+ALTER TABLE apis ADD COLUMN IF NOT EXISTS icon text NOT NULL DEFAULT '';

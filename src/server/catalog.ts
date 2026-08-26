@@ -11,6 +11,7 @@ type ApiRow = {
   category: string | null;
   provider: string;
   logo: string;
+  icon: string;
   color: string;
   rating: string;
   reviews: number;
@@ -37,6 +38,7 @@ function toApi(r: ApiRow): Api {
     category: r.category ?? "",
     provider: r.provider,
     logo: r.logo,
+    icon: r.icon || undefined,
     color: r.color,
     rating: Number(r.rating),
     reviews: r.reviews,
@@ -71,7 +73,7 @@ const apiSelect = () => sql`
   SELECT
     a.id, a.slug, a.name, a.tagline, a.description,
     c.slug AS category,
-    a.provider, a.logo, a.color, a.rating, a.reviews, a.subscribers,
+    a.provider, a.logo, a.icon, a.color, a.rating, a.reviews, a.subscribers,
     a.latency, a.uptime, a.featured, a.free_tier, a.published,
     a.tags, a.use_cases, a.sample_response,
     COALESCE((

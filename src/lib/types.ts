@@ -31,6 +31,8 @@ export type Api = {
   category: string;
   provider: string;
   logo: string;
+  /** Key into the icon registry in src/lib/icons.ts; empty falls back to `logo`. */
+  icon?: string;
   color: string;
   rating: number;
   reviews: number;
@@ -75,6 +77,7 @@ export type Subscription = {
   apiSlug: string;
   apiLogo: string;
   apiColor: string;
+  apiIcon: string | null;
   planName: string;
   planPrice: number;
   planUnit: string | null;

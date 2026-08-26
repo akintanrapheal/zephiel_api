@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { saveApi, type FormState } from "@/server/actions/admin";
 import { Check, Field, Message, Select, Submit, TextArea } from "./Form";
+import IconPicker from "./IconPicker";
 import type { Api, Category } from "@/lib/types";
 
 export default function ApiForm({
@@ -62,6 +63,10 @@ export default function ApiForm({
             defaultValue={api?.color ?? "#2445d6"}
             placeholder="#2445d6"
           />
+        </div>
+
+        <div className="mt-4">
+          <IconPicker name="icon" defaultValue={api?.icon} color={api?.color ?? "#2445d6"} />
         </div>
 
         <TextArea

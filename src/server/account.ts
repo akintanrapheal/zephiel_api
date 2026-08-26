@@ -6,7 +6,7 @@ export async function getSubscriptions(userId: string): Promise<Subscription[]> 
   return sql<Subscription[]>`
     SELECT
       s.id, s.user_id AS "userId", s.api_id AS "apiId",
-      a.name AS "apiName", a.slug AS "apiSlug", a.logo AS "apiLogo", a.color AS "apiColor",
+      a.name AS "apiName", a.slug AS "apiSlug", a.logo AS "apiLogo", a.color AS "apiColor", a.icon AS "apiIcon",
       p.name AS "planName", p.price::float8 AS "planPrice", p.unit AS "planUnit",
       s.status, s.quota, s.used, s.units,
       s.current_period_end AS "currentPeriodEnd", s.created_at AS "createdAt"

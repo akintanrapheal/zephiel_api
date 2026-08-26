@@ -11,14 +11,14 @@ export const dynamic = "force-dynamic";
  * read as text and only parsed after the signature checks out.
  */
 export async function POST(request: Request) {
-  if (!isConfigured()) {
+  if (!(await isConfigured())) {
     return NextResponse.json({ error: "Payments not configured" }, { status: 503 });
   }
 
   const raw = await request.text();
   const signature = request.headers.get("x-paystack-signature");
 
-  if (!verifyWebhookSignature(raw, signature)) {
+  if (!(await verifyWebhookSignature(raw, signature))) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 

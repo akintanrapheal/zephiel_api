@@ -39,15 +39,16 @@ export default async function AdminPaymentsPage() {
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-line">
           <table className="w-full min-w-[760px] border-collapse text-sm">
+              <caption className="sr-only">Paystack transactions with amount, channel, and status</caption>
             <thead>
               <tr className="bg-elevated text-left">
-                <th className="px-5 py-3 font-semibold text-ink">Reference</th>
-                <th className="px-5 py-3 font-semibold text-ink">Customer</th>
-                <th className="px-5 py-3 font-semibold text-ink">API</th>
-                <th className="px-5 py-3 font-semibold text-ink">Amount</th>
-                <th className="px-5 py-3 font-semibold text-ink">Channel</th>
-                <th className="px-5 py-3 font-semibold text-ink">Status</th>
-                <th className="px-5 py-3 font-semibold text-ink">Date</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Reference</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Customer</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">API</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Amount</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Channel</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Status</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Date</th>
               </tr>
             </thead>
             <tbody>

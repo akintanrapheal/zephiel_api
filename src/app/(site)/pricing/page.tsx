@@ -133,11 +133,12 @@ export default async function PricingPage() {
         <h2 className="text-xl font-semibold tracking-tight text-ink">Compare plans</h2>
         <div className="mt-6 overflow-x-auto rounded-2xl border border-line">
           <table className="w-full min-w-[640px] border-collapse text-sm">
+              <caption className="sr-only">Feature comparison across platform plans</caption>
             <thead>
               <tr className="bg-elevated">
-                <th className="px-5 py-3.5 text-left font-semibold text-ink">Feature</th>
+                <th scope="col" className="px-5 py-3.5 text-left font-semibold text-ink">Feature</th>
                 {platformPlans.map((p) => (
-                  <th key={p.name} className="px-5 py-3.5 text-left font-semibold text-ink">
+                  <th scope="col" key={p.name} className="px-5 py-3.5 text-left font-semibold text-ink">
                     {p.name}
                   </th>
                 ))}

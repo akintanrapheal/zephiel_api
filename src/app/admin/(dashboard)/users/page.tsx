@@ -14,14 +14,15 @@ export default async function AdminUsersPage() {
 
       <div className="overflow-x-auto rounded-2xl border border-line">
         <table className="w-full min-w-[720px] border-collapse text-sm">
+              <caption className="sr-only">Registered accounts with role, subscription count, and usage</caption>
           <thead>
             <tr className="bg-elevated text-left">
-              <th className="px-5 py-3 font-semibold text-ink">Email</th>
-              <th className="px-5 py-3 font-semibold text-ink">Name</th>
-              <th className="px-5 py-3 font-semibold text-ink">Role</th>
-              <th className="px-5 py-3 font-semibold text-ink">Subs</th>
-              <th className="px-5 py-3 font-semibold text-ink">Calls</th>
-              <th className="px-5 py-3 font-semibold text-ink">Joined</th>
+              <th scope="col" className="px-5 py-3 font-semibold text-ink">Email</th>
+              <th scope="col" className="px-5 py-3 font-semibold text-ink">Name</th>
+              <th scope="col" className="px-5 py-3 font-semibold text-ink">Role</th>
+              <th scope="col" className="px-5 py-3 font-semibold text-ink">Subs</th>
+              <th scope="col" className="px-5 py-3 font-semibold text-ink">Calls</th>
+              <th scope="col" className="px-5 py-3 font-semibold text-ink">Joined</th>
             </tr>
           </thead>
           <tbody>

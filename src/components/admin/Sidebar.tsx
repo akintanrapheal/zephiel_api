@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export type NavItem = {
@@ -35,6 +35,12 @@ export const adminNav: { section: string; items: NavItem[] }[] = [
       { href: "/admin/users", label: "Users", icon: "M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM21 20v-1a4 4 0 0 0-3-3.87M16 4.13a4 4 0 0 1 0 7.75" },
     ],
   },
+  {
+    section: "Configuration",
+    items: [
+      { href: "/admin/settings", label: "Settings", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9.4a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" },
+    ],
+  },
 ];
 
 function isActive(pathname: string, item: NavItem) {
@@ -55,8 +61,16 @@ export default function Sidebar({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // Escape closes the mobile drawer, as a dialog is expected to.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const links = (
-    <nav className="space-y-6">
+    <nav aria-label="Admin sections" className="space-y-6">
       {adminNav.map((group) => (
         <div key={group.section}>
           <p className="px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-muted/70">
@@ -131,7 +145,7 @@ export default function Sidebar({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div role="dialog" aria-modal="true" aria-label="Admin navigation" className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-64 overflow-y-auto border-r border-line bg-surface p-4">
             {links}

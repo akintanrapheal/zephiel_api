@@ -25,15 +25,16 @@ export default async function AdminSubscriptionsPage() {
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-line">
           <table className="w-full min-w-[800px] border-collapse text-sm">
+              <caption className="sr-only">All subscriptions with plan, spend, usage, and status</caption>
             <thead>
               <tr className="bg-elevated text-left">
-                <th className="px-5 py-3 font-semibold text-ink">Customer</th>
-                <th className="px-5 py-3 font-semibold text-ink">API</th>
-                <th className="px-5 py-3 font-semibold text-ink">Plan</th>
-                <th className="px-5 py-3 font-semibold text-ink">Monthly</th>
-                <th className="px-5 py-3 font-semibold text-ink">Usage</th>
-                <th className="px-5 py-3 font-semibold text-ink">Status</th>
-                <th className="px-5 py-3 font-semibold text-ink">Renews</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Customer</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">API</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Plan</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Monthly</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Usage</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Status</th>
+                <th scope="col" className="px-5 py-3 font-semibold text-ink">Renews</th>
               </tr>
             </thead>
             <tbody>
