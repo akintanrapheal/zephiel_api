@@ -1,7 +1,7 @@
 # Zephiel API
 
 An API marketplace — browse, compare, and subscribe to production-grade REST APIs behind a single key.
-Built with Next.js 15 (App Router), TypeScript, and Tailwind CSS. Zero external services required to run.
+Built with Next.js 16 (App Router), TypeScript, and Tailwind CSS. Zero external services required to run.
 
 ## Running locally
 
