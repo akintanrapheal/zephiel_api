@@ -7,9 +7,11 @@ export type SettingKey =
   | "paystack_currency"
   | "usd_to_ngn"
   | "platform_name"
-  | "support_email";
+  | "support_email"
+  | "resend_api_key"
+  | "email_from";
 
-const SECRET_KEYS: SettingKey[] = ["paystack_secret_key"];
+const SECRET_KEYS: SettingKey[] = ["paystack_secret_key", "resend_api_key"];
 
 /**
  * Key material for encrypting stored secrets.

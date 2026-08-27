@@ -1,5 +1,6 @@
 import { listUsers } from "@/server/admin";
 import { setUserRole } from "@/server/actions/admin";
+import Link from "next/link";
 import PageHeader from "@/components/admin/PageHeader";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,11 @@ export default async function AdminUsersPage() {
           <tbody>
             {users.map((u, i) => (
               <tr key={u.id} className={i % 2 ? "bg-elevated/40" : "bg-surface"}>
-                <td className="px-5 py-3 text-ink">{u.email}</td>
+                <td className="px-5 py-3">
+                  <Link href={`/admin/users/${u.id}`} className="font-medium text-ink hover:text-brand-600">
+                    {u.email}
+                  </Link>
+                </td>
                 <td className="px-5 py-3 text-muted">{u.name || "—"}</td>
                 <td className="px-5 py-3">
                   <form action={setUserRole} className="flex items-center gap-2">

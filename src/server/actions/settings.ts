@@ -6,6 +6,8 @@ import { requireAdmin, hashPassword, verifyPassword, createSession } from "@/lib
 import { sql } from "@/lib/db";
 import { clearSetting, setSetting } from "@/lib/settings";
 import { getPaystackConfig, testSecretKey } from "@/lib/paystack";
+import { getEmailConfig, sendEmail, emailShell } from "@/lib/email";
+import { sweepRenewalReminders } from "@/server/notifications";
 import type { FormState } from "./admin";
 
 const paystackSchema = z.object({
@@ -95,6 +97,97 @@ export async function savePlatformSettings(
 
   revalidatePath("/admin/settings");
   return { ok: "Platform settings saved." };
+}
+
+const emailSchema = z.object({
+  from: z
+    .string()
+    .trim()
+    .max(120)
+    .refine(
+      (v) => v === "" || /^[^<>@]*<[^@\s]+@[^@\s]+\.[a-z]{2,}>$|^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v),
+      'Use an address, optionally with a name: Zephiel API <hello@yourdomain.com>'
+    ),
+});
+
+/** Save the email provider key and sender address. */
+export async function saveEmailSettings(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+
+  const parsed = emailSchema.safeParse({ from: String(formData.get("from") ?? "") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const key = String(formData.get("apiKey") ?? "").trim();
+
+  // Blank means "keep the stored key", so saving a sender never wipes it.
+  if (key) {
+    if (!key.startsWith("re_")) return { error: "A Resend API key starts with re_." };
+    await setSetting("resend_api_key", key, admin.id);
+  }
+
+  if (parsed.data.from) await setSetting("email_from", parsed.data.from, admin.id);
+
+  revalidatePath("/admin/settings");
+  return { ok: key ? "Email key saved." : "Sender address saved." };
+}
+
+export async function removeEmailKey() {
+  await requireAdmin();
+  await clearSetting("resend_api_key");
+  revalidatePath("/admin/settings");
+}
+
+/** Send a specimen reminder to the signed-in administrator. */
+export async function sendTestEmail(_prev: FormState): Promise<FormState> {
+  const admin = await requireAdmin();
+
+  const config = await getEmailConfig();
+  if (!config.apiKey) return { error: "No email provider configured yet." };
+
+  const sent = await sendEmail({
+    to: admin.email,
+    subject: "Zephiel API — test email",
+    html: emailShell({
+      heading: "Your email settings work",
+      intro:
+        "This is a test message from the Zephiel admin console. Renewal reminders will look like this.",
+      rows: [
+        { label: "Sender", value: config.from },
+        { label: "Provider", value: "Resend" },
+        { label: "Key source", value: config.source === "settings" ? "Admin console" : "Environment" },
+      ],
+      footer: "Sent manually from the admin console.",
+    }),
+    text: "Your Zephiel email settings work. Renewal reminders will be delivered this way.",
+  });
+
+  return sent.ok
+    ? { ok: `Test email sent to ${admin.email}.` }
+    : { error: `Could not send: ${sent.error}` };
+}
+
+/** Run the renewal sweep immediately, rather than waiting for the daily cron. */
+export async function runRenewalSweep(_prev: FormState): Promise<FormState> {
+  await requireAdmin();
+
+  const config = await getEmailConfig();
+  if (!config.apiKey) return { error: "Configure an email provider first." };
+
+  const result = await sweepRenewalSweepSafe();
+  revalidatePath("/admin/notifications");
+
+  return {
+    ok: `Checked ${result.considered} subscription${result.considered === 1 ? "" : "s"} — ${result.sent} sent, ${result.skipped} already notified, ${result.failed} failed.`,
+  };
+}
+
+async function sweepRenewalSweepSafe() {
+  try {
+    return await sweepRenewalReminders();
+  } catch (err) {
+    console.error("Renewal sweep failed:", err);
+    return { considered: 0, sent: 0, skipped: 0, failed: 0, details: [] };
+  }
 }
 
 const passwordSchema = z

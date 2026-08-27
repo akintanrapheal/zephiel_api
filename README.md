@@ -52,6 +52,8 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 | `PAYSTACK_SECRET_KEY` | for paid plans | Optional — the key can instead be set in the admin console at /admin/settings, which takes precedence. Free plans work without either. |
 | `PAYSTACK_CURRENCY` | no | `NGN` (default), `GHS`, `ZAR`, `KES`, or `USD` — whatever your Paystack account settles in. |
 | `USD_TO_NGN` | no | Catalog prices are stored in USD; this converts them at charge time. Default `1550`. |
+| `RESEND_API_KEY` | for reminders | Or set it in the admin console. Without it the sweep runs but sends nothing. |
+| `CRON_SECRET` | for reminders | Bearer token Vercel Cron presents; the endpoint refuses to run without it. |
 | `SETTINGS_KEY` | recommended | Encrypts secrets stored from the admin console (AES-256-GCM). Falls back to deriving from `DATABASE_URL`, which breaks if the database password is rotated. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | no | Used only by `db:seed` to create the first administrator. |
 
@@ -59,7 +61,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 83 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 90 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies

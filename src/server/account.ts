@@ -108,6 +108,7 @@ export type Store = {
   id: string;
   name: string;
   platform: string;
+  domain: string;
   status: string;
   keyPrefix: string | null;
   calls: number;
@@ -118,7 +119,7 @@ export type Store = {
 export async function getStores(userId: string): Promise<Store[]> {
   return sql<Store[]>`
     SELECT
-      st.id, st.name, st.platform, st.status, st.created_at AS "createdAt",
+      st.id, st.name, st.platform, st.domain, st.status, st.created_at AS "createdAt",
       k.key_prefix AS "keyPrefix",
       (SELECT COUNT(*) FROM usage_events e WHERE e.store_id = st.id)::int AS calls,
       (SELECT MAX(e.created_at) FROM usage_events e WHERE e.store_id = st.id) AS "lastCall"

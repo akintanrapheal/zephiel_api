@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { addStore, removeStore, rotateStoreKey, setStoreStatus, type StoreState } from "@/server/actions/stores";
-import { PLATFORMS } from "@/lib/platforms";
+import { PLATFORMS, PLATFORM_LABELS } from "@/lib/platforms";
 import type { Store } from "@/server/account";
 import { cn } from "@/lib/utils";
 
@@ -47,34 +47,52 @@ export default function StoreManager({
           others. Billing is ${pricePerStore} per connected store, per month.
         </p>
 
-        <form action={addAction} className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <label className="flex-1">
-            <span className="sr-only">Store name</span>
-            <input
-              name="name"
-              required
-              maxLength={60}
-              placeholder="Lagos Flagship"
-              className="w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
-            />
-          </label>
+        <form action={addAction} className="mt-4 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
+            <label>
+              <span className="text-xs font-semibold text-ink">Store name</span>
+              <input
+                name="name"
+                required
+                maxLength={60}
+                placeholder="Lagos Flagship"
+                className="mt-1.5 w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
+              />
+            </label>
 
-          <label className="sm:w-48">
-            <span className="sr-only">Platform</span>
-            <select
-              name="platform"
-              defaultValue="shopify"
-              className="w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none focus:border-brand-400"
-            >
-              {PLATFORMS.map((p) => (
-                <option key={p} value={p}>
-                  {p[0].toUpperCase() + p.slice(1)}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label>
+              <span className="text-xs font-semibold text-ink">Platform</span>
+              <select
+                name="platform"
+                defaultValue="shopify"
+                className="mt-1.5 w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none focus:border-brand-400"
+              >
+                {PLATFORMS.map((p) => (
+                  <option key={p} value={p}>
+                    {PLATFORM_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-          <AddButton disabled={!canAdd} />
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <label>
+              <span className="text-xs font-semibold text-ink">
+                Storefront URL <span className="font-normal text-muted">optional</span>
+              </span>
+              <input
+                name="domain"
+                maxLength={120}
+                placeholder="shop.example.com"
+                className="mt-1.5 w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
+              />
+            </label>
+
+            <div className="flex items-end">
+              <AddButton disabled={!canAdd} />
+            </div>
+          </div>
         </form>
 
         {!canAdd && (
@@ -132,8 +150,9 @@ export default function StoreManager({
 
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
-                    <p className="truncate text-xs capitalize text-muted">
-                      {s.platform} &middot; {s.calls.toLocaleString()} calls
+                    <p className="truncate text-xs text-muted">
+                      {PLATFORM_LABELS[s.platform as keyof typeof PLATFORM_LABELS] ?? s.platform}
+                      {s.domain && ` · ${s.domain}`} &middot; {s.calls.toLocaleString()} calls
                       {s.lastCall && ` · last ${new Date(s.lastCall).toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}`}
                     </p>
                   </div>

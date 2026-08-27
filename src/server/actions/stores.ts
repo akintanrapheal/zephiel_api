@@ -11,6 +11,13 @@ export type StoreState = { error?: string; ok?: string; createdKey?: string; sto
 const storeSchema = z.object({
   name: z.string().trim().min(1, "Give the store a name.").max(60),
   platform: z.enum(PLATFORMS),
+  domain: z
+    .string()
+    .trim()
+    .max(120)
+    .transform((v) => v.replace(/^https?:\/\//i, "").replace(/\/$/, ""))
+    .refine((v) => v === "" || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(v), "Enter a domain like shop.example.com.")
+    .optional(),
 });
 
 /**
@@ -26,6 +33,7 @@ export async function addStore(_prev: StoreState, formData: FormData): Promise<S
   const parsed = storeSchema.safeParse({
     name: String(formData.get("name") ?? ""),
     platform: String(formData.get("platform") ?? "shopify"),
+    domain: String(formData.get("domain") ?? ""),
   });
 
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -50,8 +58,9 @@ export async function addStore(_prev: StoreState, formData: FormData): Promise<S
 
   const store = await sql.begin(async (tx) => {
     const [created] = await tx<{ id: string; name: string }[]>`
-      INSERT INTO stores (user_id, subscription_id, name, platform)
-      VALUES (${user.id}, ${sub.id}, ${parsed.data.name}, ${parsed.data.platform})
+      INSERT INTO stores (user_id, subscription_id, name, platform, domain)
+      VALUES (${user.id}, ${sub.id}, ${parsed.data.name}, ${parsed.data.platform},
+              ${parsed.data.domain ?? ""})
       RETURNING id, name
     `;
 

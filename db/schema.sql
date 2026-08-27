@@ -199,3 +199,27 @@ ALTER TABLE api_keys     ADD COLUMN IF NOT EXISTS store_id uuid REFERENCES store
 ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS store_id uuid REFERENCES stores(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS usage_store_created_idx ON usage_events(store_id, created_at DESC);
+
+-- Optional storefront URL — the only identifier a custom/headless store has.
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS domain text NOT NULL DEFAULT '';
+
+-- --------------------------------------------------------- notifications --
+
+-- Outbound emails we have sent about a subscription. The unique constraint is
+-- the deduplication: one reminder of each kind per billing period, however
+-- many times the sweep runs.
+CREATE TABLE IF NOT EXISTS notifications (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subscription_id uuid REFERENCES subscriptions(id) ON DELETE CASCADE,
+  kind            text NOT NULL,
+  period_end      timestamptz,
+  status          text NOT NULL DEFAULT 'sent',
+  detail          text NOT NULL DEFAULT '',
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_once_idx
+  ON notifications(subscription_id, kind, period_end);
+
+CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, created_at DESC);

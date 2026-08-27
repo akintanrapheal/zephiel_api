@@ -15,6 +15,21 @@ export const PLATFORMS = [
   "etsy",
   "amazon",
   "ebay",
+  "custom",
 ] as const;
+
+/** Display labels — "custom" needs more than a capitalised slug. */
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  shopify: "Shopify",
+  woocommerce: "WooCommerce",
+  magento: "Magento",
+  bigcommerce: "BigCommerce",
+  wix: "Wix",
+  squarespace: "Squarespace",
+  etsy: "Etsy",
+  amazon: "Amazon",
+  ebay: "eBay",
+  custom: "Custom website",
+};
 
 export type Platform = (typeof PLATFORMS)[number];

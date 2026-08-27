@@ -173,6 +173,7 @@ try {
     "/admin/subscriptions",
     "/admin/payments",
     "/admin/settings",
+    "/admin/notifications",
   ]) {
     const res = await fetch(`${BASE}${path}`, { headers: { cookie: adminCookie }, redirect: "manual" });
     check(`admin can open ${path}`, res.status === 200, `status ${res.status}`);
@@ -247,6 +248,48 @@ try {
   `;
   check("currency setting persists", cur?.value === "USD", cur?.value ?? "(unset)");
   await sql`DELETE FROM settings WHERE key IN ('paystack_currency','usd_to_ngn')`;
+
+  // -------------------------------------------------------- reminders ----
+  console.log("\nRenewal reminders");
+
+  const cronNoAuth = await fetch(`${BASE}/api/cron/renewal-reminders`);
+  check("cron endpoint refuses an unauthenticated call", cronNoAuth.status === 401, `status ${cronNoAuth.status}`);
+
+  const cronBadAuth = await fetch(`${BASE}/api/cron/renewal-reminders`, {
+    headers: { authorization: "Bearer wrong-secret" },
+  });
+  check("cron endpoint refuses a wrong secret", cronBadAuth.status === 401, `status ${cronBadAuth.status}`);
+
+  // A subscription expiring in exactly 7 days must be picked up by the sweep.
+  const [reminderApi] = await sql<{ api_id: string; plan_id: string; quota: number }[]>`
+    SELECT p.api_id, p.id AS plan_id, p.quota FROM plans p
+    JOIN apis a ON a.id = p.api_id
+    WHERE a.slug = 'weather-forecast' AND p.price = 0 LIMIT 1
+  `;
+  await sql`
+    INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units, current_period_end)
+    VALUES (${user.id}, ${reminderApi.api_id}, ${reminderApi.plan_id}, 'active', ${reminderApi.quota}, 1,
+            (CURRENT_DATE + 7) + time '12:00')
+    ON CONFLICT (user_id, api_id) DO UPDATE
+      SET status = 'active', current_period_end = EXCLUDED.current_period_end
+  `;
+
+  const [notCol] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM information_schema.columns
+    WHERE table_name = 'notifications' AND column_name IN ('kind','period_end','status')
+  `;
+  check("notifications table has the dedupe columns", Number(notCol.c) === 3, `${notCol.c}/3`);
+
+  const adminNotifs = await fetch(`${BASE}/admin/notifications`, { headers: { cookie: adminCookie } });
+  check("admin notifications page loads", adminNotifs.status === 200, `status ${adminNotifs.status}`);
+
+  const notifHtml = await adminNotifs.text();
+  check("notifications page shows the due list", notifHtml.includes("Due for a reminder today"));
+  check(
+    "a subscription expiring in 7 days is flagged for a reminder",
+    notifHtml.includes(email),
+    "customer not listed as due"
+  );
 
   // ---------------------------------------------------------------- stores --
   console.log("\nStores");
