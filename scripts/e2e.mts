@@ -134,6 +134,18 @@ try {
   const dashAnon = await fetch(`${BASE}/dashboard`, { redirect: "manual" });
   check("anonymous is redirected away from /dashboard", dashAnon.status === 307);
 
+  // The signed-in area gets its own chrome, not the marketing header/footer.
+  const dashHtml = await (await fetch(`${BASE}/dashboard`, { headers: { cookie } })).text();
+  check("dashboard has no marketing footer", !dashHtml.includes("All rights reserved"));
+  check("dashboard has no marketing nav", !dashHtml.includes("Get free key"));
+  check("dashboard has its own nav", dashHtml.includes('aria-label="Dashboard sections"'));
+  check("dashboard shows the member-since line", dashHtml.includes("member since"));
+
+  for (const path of ["/dashboard/stores", "/dashboard/usage", "/dashboard/keys", "/dashboard/playground"]) {
+    const res = await fetch(`${BASE}${path}`, { headers: { cookie }, redirect: "manual" });
+    check(`customer can open ${path}`, res.status === 200, `status ${res.status}`);
+  }
+
   // --------------------------------------------------------- admin login --
   console.log("\nAdmin");
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@zephiel.dev";
@@ -236,6 +248,56 @@ try {
   check("currency setting persists", cur?.value === "USD", cur?.value ?? "(unset)");
   await sql`DELETE FROM settings WHERE key IN ('paystack_currency','usd_to_ngn')`;
 
+  // ---------------------------------------------------------------- stores --
+  console.log("\nStores");
+
+  // The customer needs an active Multistore subscription first.
+  const [msPlan] = await sql<{ id: string; api_id: string; quota: number }[]>`
+    SELECT p.id, p.api_id, p.quota FROM plans p
+    JOIN apis a ON a.id = p.api_id
+    WHERE a.slug = 'multistore' AND p.price = 0 LIMIT 1
+  `;
+  await sql`
+    INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units, current_period_end)
+    VALUES (${user.id}, ${msPlan.api_id}, ${msPlan.id}, 'active', ${msPlan.quota}, 1, now() + interval '30 days')
+    ON CONFLICT (user_id, api_id) DO UPDATE SET status = 'active', quota = EXCLUDED.quota
+  `;
+
+  const storesPage = await fetch(`${BASE}/dashboard/stores`, { headers: { cookie }, redirect: "manual" });
+  check("stores page loads for a subscriber", storesPage.status === 200, `status ${storesPage.status}`);
+
+  const addRes = await submit("/dashboard/stores", { name: "Lagos Flagship", platform: "shopify" }, cookie, 'name="platform"');
+  const [store] = await sql<{ id: string; name: string }[]>`
+    SELECT id, name FROM stores WHERE user_id = ${user.id} AND name = 'Lagos Flagship' LIMIT 1
+  `;
+  check("a store can be connected", Boolean(store), `status ${addRes.status}`);
+
+  const storeKeys = await sql<{ id: string; key_prefix: string }[]>`
+    SELECT id, key_prefix FROM api_keys WHERE store_id = ${store?.id ?? null}
+  `;
+  check("connecting a store mints its own key", storeKeys.length === 1);
+
+  const [unitRow] = await sql<{ units: number }[]>`
+    SELECT units FROM subscriptions WHERE user_id = ${user.id} AND api_id = ${msPlan.api_id}
+  `;
+  check("billable units track the store count", unitRow.units === 1, `units=${unitRow.units}`);
+
+  // Mint a second store key we know the plaintext of, and prove attribution.
+  const storeSecret = `zk_live_${randomBytes(20).toString("hex")}`;
+  await sql`
+    UPDATE api_keys SET key_hash = ${createHash("sha256").update(storeSecret).digest("hex")}
+    WHERE store_id = ${store.id}
+  `;
+  const storeCall = await fetch(`${BASE}/api/v1/multistore/stores`, {
+    headers: { "x-zephiel-key": storeSecret },
+  });
+  check("a store key can call the gateway", storeCall.status === 200, `status ${storeCall.status}`);
+
+  const [attributed] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM usage_events WHERE store_id = ${store.id}
+  `;
+  check("the call is attributed to that store", Number(attributed.c) === 1, `${attributed.c} events`);
+
   // ---------------------------------------------------------------- icons --
   const [iconRow] = await sql<{ c: string }[]>`
     SELECT COUNT(*)::text AS c FROM apis WHERE icon <> ''
@@ -329,6 +391,10 @@ try {
   check("gateway rejects an unknown key", badKey.status === 401);
 
   {
+    const [eventsBefore] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM usage_events WHERE user_id = ${user.id}
+    `;
+
     const ok = await gw({ "x-zephiel-key": plaintext });
     const okBody = await ok.json();
     check("gateway accepts a valid subscribed key", ok.status === 200, `status ${ok.status}`);
@@ -343,10 +409,14 @@ try {
     `;
     check("call is metered against the quota", after.used === sub.used + 1);
 
-    const [events] = await sql<{ c: string }[]>`
+    const [eventsAfter] = await sql<{ c: string }[]>`
       SELECT COUNT(*)::text AS c FROM usage_events WHERE user_id = ${user.id}
     `;
-    check("usage event is recorded", Number(events.c) === 1);
+    check(
+      "usage event is recorded",
+      Number(eventsAfter.c) === Number(eventsBefore.c) + 1,
+      `${eventsBefore.c} -> ${eventsAfter.c}`
+    );
 
     // A key that is valid but has no subscription for this API.
     const other = await fetch(`${BASE}/api/v1/exchange-rates-data/latest`, {

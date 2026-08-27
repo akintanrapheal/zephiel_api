@@ -31,8 +31,11 @@ async function handle(
     return fail(401, "missing_key", "Send your key in the X-Zephiel-Key header.");
   }
 
-  const [key] = await sql<{ id: string; user_id: string; revoked_at: Date | null }[]>`
-    SELECT id, user_id, revoked_at FROM api_keys WHERE key_hash = ${hashApiKey(presented)} LIMIT 1
+  const [key] = await sql<
+    { id: string; user_id: string; revoked_at: Date | null; store_id: string | null }[]
+  >`
+    SELECT id, user_id, revoked_at, store_id
+    FROM api_keys WHERE key_hash = ${hashApiKey(presented)} LIMIT 1
   `;
 
   if (!key || key.revoked_at) {
@@ -72,8 +75,8 @@ async function handle(
 
   const latency = Date.now() - started;
   await sql`
-    INSERT INTO usage_events (user_id, api_id, api_key_id, endpoint, method, status, latency_ms)
-    VALUES (${key.user_id}, ${api.id}, ${key.id}, ${`/${slug}${endpointPath}`},
+    INSERT INTO usage_events (user_id, api_id, api_key_id, store_id, endpoint, method, status, latency_ms)
+    VALUES (${key.user_id}, ${api.id}, ${key.id}, ${key.store_id}, ${`/${slug}${endpointPath}`},
             ${request.method}, 200, ${latency})
   `;
 

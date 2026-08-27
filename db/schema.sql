@@ -174,3 +174,28 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Per-listing icon, stored as a key into the registry in src/lib/icons.ts.
 -- Falls back to the two-letter monogram when empty.
 ALTER TABLE apis ADD COLUMN IF NOT EXISTS icon text NOT NULL DEFAULT '';
+
+-- --------------------------------------------------------------- stores --
+
+-- Connected storefronts under a per-unit subscription (the Multistore API).
+-- Each store carries its own API key so traffic can be attributed and a single
+-- store revoked without disturbing the others.
+CREATE TABLE IF NOT EXISTS stores (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subscription_id uuid NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+  name            text NOT NULL,
+  platform        text NOT NULL DEFAULT 'shopify',
+  status          text NOT NULL DEFAULT 'synced'
+                  CHECK (status IN ('synced','syncing','sandbox','error')),
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS stores_user_idx ON stores(user_id);
+CREATE INDEX IF NOT EXISTS stores_sub_idx  ON stores(subscription_id);
+
+-- A key may be scoped to one store; NULL means an account-wide key.
+ALTER TABLE api_keys     ADD COLUMN IF NOT EXISTS store_id uuid REFERENCES stores(id) ON DELETE CASCADE;
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS store_id uuid REFERENCES stores(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS usage_store_created_idx ON usage_events(store_id, created_at DESC);

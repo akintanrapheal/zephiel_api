@@ -90,3 +90,85 @@ export async function getAccountSummary(userId: string) {
     errorRate: calls === 0 ? 0 : (errors / calls) * 100,
   };
 }
+
+export async function getUsageByApi(userId: string) {
+  const rows = await sql<{ name: string; color: string; calls: string }[]>`
+    SELECT a.name, a.color, COUNT(e.id)::text AS calls
+    FROM usage_events e
+    JOIN apis a ON a.id = e.api_id
+    WHERE e.user_id = ${userId}
+    GROUP BY a.id, a.name, a.color
+    ORDER BY COUNT(e.id) DESC
+    LIMIT 10
+  `;
+  return rows.map((r) => ({ name: r.name, color: r.color, calls: Number(r.calls) }));
+}
+
+export type Store = {
+  id: string;
+  name: string;
+  platform: string;
+  status: string;
+  keyPrefix: string | null;
+  calls: number;
+  lastCall: Date | null;
+  createdAt: Date;
+};
+
+export async function getStores(userId: string): Promise<Store[]> {
+  return sql<Store[]>`
+    SELECT
+      st.id, st.name, st.platform, st.status, st.created_at AS "createdAt",
+      k.key_prefix AS "keyPrefix",
+      (SELECT COUNT(*) FROM usage_events e WHERE e.store_id = st.id)::int AS calls,
+      (SELECT MAX(e.created_at) FROM usage_events e WHERE e.store_id = st.id) AS "lastCall"
+    FROM stores st
+    LEFT JOIN api_keys k ON k.store_id = st.id AND k.revoked_at IS NULL
+    WHERE st.user_id = ${userId}
+    ORDER BY st.created_at
+  `;
+}
+
+/**
+ * Calls per store in five-minute buckets over the last `hours` hours.
+ *
+ * generate_series produces every bucket so gaps render as zero rather than
+ * the line jumping across missing time.
+ */
+export async function getStoreActivity(userId: string, hours = 6) {
+  const rows = await sql<{ bucket: Date; store_id: string; calls: string }[]>`
+    SELECT
+      b.bucket,
+      st.id AS store_id,
+      COUNT(e.id)::text AS calls
+    FROM generate_series(
+      date_trunc('hour', now() - (${hours}::text || ' hours')::interval),
+      now(),
+      interval '5 minutes'
+    ) AS b(bucket)
+    CROSS JOIN stores st
+    LEFT JOIN usage_events e
+      ON e.store_id = st.id
+     AND e.created_at >= b.bucket
+     AND e.created_at <  b.bucket + interval '5 minutes'
+    WHERE st.user_id = ${userId}
+    GROUP BY b.bucket, st.id
+    ORDER BY b.bucket
+  `;
+
+  const buckets: string[] = [];
+  const seen = new Set<string>();
+  const byStore = new Map<string, number[]>();
+
+  for (const r of rows) {
+    const iso = new Date(r.bucket).toISOString();
+    if (!seen.has(iso)) {
+      seen.add(iso);
+      buckets.push(iso);
+    }
+    if (!byStore.has(r.store_id)) byStore.set(r.store_id, []);
+    byStore.get(r.store_id)!.push(Number(r.calls));
+  }
+
+  return { buckets, byStore: Object.fromEntries(byStore) };
+}

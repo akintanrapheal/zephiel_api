@@ -59,7 +59,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 69 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 83 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies
@@ -115,7 +115,9 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 | `/pricing`, `/docs`, `/status` | Platform plans, full API reference, per-API uptime |
 | `/legal/terms`, `/legal/gdpr` | Terms, and a GDPR page documenting data categories, retention, subprocessors, and rights |
 | `/signup`, `/signin` | Real authentication |
-| `/dashboard` | Live usage chart, subscriptions with quota bars, request log, key management |
+| `/dashboard` | Signed-in area with its own chrome: overview, stores, usage, keys, playground |
+| `/dashboard/stores` | Connect storefronts, each with its own key, and a 5-minute per-store call chart |
+| `/dashboard/playground` | Fire real gateway requests and inspect the response |
 | `/admin/login` | Administrator sign-in, separate from customer auth |
 | `/admin`, `/admin/apis`, `/admin/categories`, `/admin/users`, `/admin/subscriptions`, `/admin/payments`, `/admin/settings` | Admin console |
 | `/billing/callback` | Paystack return URL |
@@ -144,7 +146,7 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 
 ```
 db/schema.sql              Full DDL — idempotent, the single source of truth
-scripts/                   migrate, seed, reset, and the e2e suite
+scripts/                   migrate, seed, reset, e2e, and admin/user maintenance
 src/lib/
   db.ts                    Pooled postgres client
   auth.ts                  Password hashing, sessions, API key generation
