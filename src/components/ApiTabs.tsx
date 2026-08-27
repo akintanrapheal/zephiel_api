@@ -91,7 +91,10 @@ export default function ApiTabs({ api, currentPlan }: { api: Api; currentPlan?: 
                 Every Zephiel API uses the same base URL, the same key header, and the same error envelope.
               </p>
               <div className="mt-4">
-                <CodeSamples slug={api.slug} endpoint={api.endpoints[0].path.replace(/\{[^}]+\}/g, "8.8.8.8")} />
+                <CodeSamples
+                  slug={api.slug}
+                  endpoint={(api.endpoints[0]?.path ?? "/").replace(/\{[^}]+\}/g, "8.8.8.8")}
+                />
               </div>
             </section>
 
@@ -106,6 +109,11 @@ export default function ApiTabs({ api, currentPlan }: { api: Api; currentPlan?: 
 
         <div hidden={tab !== "Endpoints"}>
           <div className="space-y-3">
+            {api.endpoints.length === 0 && (
+              <p className="rounded-xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
+                No endpoints have been published for this API yet.
+              </p>
+            )}
             {api.endpoints.map((e) => (
               <div
                 key={e.method + e.path}
@@ -140,6 +148,11 @@ export default function ApiTabs({ api, currentPlan }: { api: Api; currentPlan?: 
                 ? `Plans are billed monthly per connected ${perUnit}, counted daily and prorated, so adding or removing one mid-month only changes that month's total by the days it was active.`
                 : "Plans are billed monthly and can be changed or cancelled at any time. Overage is charged per 1,000 requests rather than hard-blocking your traffic."}
             </p>
+            {api.plans.length === 0 && (
+              <p className="mt-6 rounded-xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
+                No plans have been published for this API yet — it cannot be subscribed to.
+              </p>
+            )}
             <div
               className={cn(
                 "mt-6 grid gap-4",

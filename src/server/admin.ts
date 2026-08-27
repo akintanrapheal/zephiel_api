@@ -81,6 +81,7 @@ export async function listApisForAdmin() {
       published: boolean;
       featured: boolean;
       plan_count: string;
+      endpoint_count: string;
       subscriber_count: string;
       updated_at: Date;
     }[]
@@ -88,6 +89,7 @@ export async function listApisForAdmin() {
     SELECT a.id, a.slug, a.name, a.provider, a.logo, a.icon, a.color,
            c.name AS category, a.published, a.featured, a.updated_at,
            (SELECT COUNT(*) FROM plans p WHERE p.api_id = a.id)::text AS plan_count,
+           (SELECT COUNT(*) FROM endpoints e WHERE e.api_id = a.id)::text AS endpoint_count,
            (SELECT COUNT(*) FROM subscriptions s WHERE s.api_id = a.id AND s.status = 'active')::text
              AS subscriber_count
     FROM apis a

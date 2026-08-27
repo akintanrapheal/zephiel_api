@@ -196,6 +196,43 @@ export async function toggleApiPublished(formData: FormData) {
   revalidateCatalog(row?.slug);
 }
 
+export type PublishState = { error?: string; ok?: string } | null;
+
+/**
+ * Publish with a completeness check.
+ *
+ * A live listing with no plans cannot be subscribed to, and one with no
+ * endpoints documents nothing — both are visible to the public, so the console
+ * says so rather than letting it ship silently.
+ */
+export async function publishApi(_prev: PublishState, formData: FormData): Promise<PublishState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "Missing API." };
+
+  const [counts] = await sql<{ slug: string; plans: string; endpoints: string; published: boolean }[]>`
+    SELECT a.slug, a.published,
+           (SELECT COUNT(*) FROM plans p WHERE p.api_id = a.id)::text AS plans,
+           (SELECT COUNT(*) FROM endpoints e WHERE e.api_id = a.id)::text AS endpoints
+    FROM apis a WHERE a.id = ${id} LIMIT 1
+  `;
+  if (!counts) return { error: "API not found." };
+
+  if (!counts.published && Number(counts.plans) === 0) {
+    return { error: "Add at least one plan before publishing — nobody could subscribe to it." };
+  }
+
+  await sql`UPDATE apis SET published = NOT published, updated_at = now() WHERE id = ${id}`;
+  revalidateCatalog(counts.slug);
+
+  const warning =
+    !counts.published && Number(counts.endpoints) === 0
+      ? " It has no endpoints documented yet."
+      : "";
+
+  return { ok: `${counts.published ? "Unpublished" : "Published"}.${warning}` };
+}
+
 export async function deleteApi(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");

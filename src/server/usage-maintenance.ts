@@ -47,6 +47,47 @@ export async function rollupFinishedDays() {
 }
 
 /**
+ * Advance subscriptions whose billing period has ended.
+ *
+ * Free plans roll over: the allowance resets and the period moves on, which is
+ * what "100 calls a month, forever" has to mean. Paid plans expire instead —
+ * renewing them requires a payment, and the gateway already refuses anything
+ * that is not active.
+ *
+ * Without this, `used` only ever reset when a payment cleared, so a free plan
+ * hit its cap once and stayed capped.
+ */
+export async function processRenewals() {
+  const rolled = await sql<{ id: string }[]>`
+    UPDATE subscriptions s
+    SET used = 0,
+        current_period_end = s.current_period_end + interval '1 month',
+        updated_at = now()
+    FROM plans p
+    WHERE p.id = s.plan_id
+      AND s.status = 'active'
+      AND s.current_period_end IS NOT NULL
+      AND s.current_period_end < now()
+      AND p.price = 0
+    RETURNING s.id
+  `;
+
+  const expired = await sql<{ id: string }[]>`
+    UPDATE subscriptions s
+    SET status = 'expired', updated_at = now()
+    FROM plans p
+    WHERE p.id = s.plan_id
+      AND s.status = 'active'
+      AND s.current_period_end IS NOT NULL
+      AND s.current_period_end < now()
+      AND p.price > 0
+    RETURNING s.id
+  `;
+
+  return { renewed: rolled.length, expired: expired.length };
+}
+
+/**
  * Extend a demonstration account's daily curve so the chart keeps moving.
  *
  * Continues from the last recorded day at a similar volume rather than

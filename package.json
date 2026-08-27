@@ -12,7 +12,8 @@
     "db:reset": "tsx scripts/reset.mts",
     "test:e2e": "tsx scripts/e2e.mts",
     "admin:password": "tsx scripts/set-password.mts",
-    "user:adjust": "tsx scripts/adjust-user.mts"
+    "user:adjust": "tsx scripts/adjust-user.mts",
+    "audit": "tsx scripts/audit.mts"
   },
   "dependencies": {
     "next": "^16.3.3",

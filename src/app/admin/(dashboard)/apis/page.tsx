@@ -46,12 +46,22 @@ export default async function AdminApisPage() {
                   </Link>
                   <p className="truncate text-xs text-muted">
                     /{a.slug} &middot; {a.category ?? "Uncategorised"} &middot; {a.plan_count} plans
+                    &middot; {a.endpoint_count} endpoints
                   </p>
                 </div>
 
                 <span className="shrink-0 text-xs tabular-nums text-muted">
                   {a.subscriber_count} subs
                 </span>
+
+                {a.published && Number(a.plan_count) === 0 && (
+                  <span
+                    className="shrink-0 rounded-md bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-600"
+                    title="Live but has no plans, so nobody can subscribe"
+                  >
+                    No plans
+                  </span>
+                )}
 
                 {a.featured && (
                   <span className="shrink-0 rounded-md bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-600">

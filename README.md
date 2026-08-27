@@ -41,6 +41,9 @@ not set it generates a random one — save it from the output, because it is not
 After a deploy that changes `db/schema.sql`, apply it from **Admin → Settings → Database schema**, which
 reports what is missing and applies it in one click. `npm run db:migrate` does the same from a terminal.
 
+`npm run audit` crawls every route as visitor, customer, and administrator, follows every internal
+link, and runs data-integrity checks — useful after a deploy.
+
 `db:migrate` is idempotent, and `db:seed` upserts by slug — re-running either is safe and won't
 disturb users, subscriptions, or payments. `npm run db:reset` drops every table (development only).
 
@@ -64,7 +67,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 116 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 119 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies

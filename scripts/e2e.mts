@@ -449,6 +449,50 @@ try {
   check("theme script sets colorScheme", rootHtml.includes("colorScheme"));
   check("theme script reads the stored preference", rootHtml.includes("zephiel-theme"));
 
+  // Renewals: a lapsed free plan rolls over, a lapsed paid plan expires.
+  const [freePlanRow] = await sql<{ id: string; api_id: string; quota: number }[]>`
+    SELECT p.id, p.api_id, p.quota FROM plans p JOIN apis a ON a.id = p.api_id
+    WHERE a.slug = 'timezone-api' AND p.price = 0 LIMIT 1
+  `;
+  await sql`
+    INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, used, current_period_end)
+    VALUES (${user.id}, ${freePlanRow.api_id}, ${freePlanRow.id}, 'active', ${freePlanRow.quota},
+            ${freePlanRow.quota}, now() - interval '1 day')
+    ON CONFLICT (user_id, api_id) DO UPDATE
+      SET status='active', used = EXCLUDED.used, current_period_end = EXCLUDED.current_period_end
+  `;
+
+  const [paidPlanRow] = await sql<{ id: string; api_id: string; quota: number }[]>`
+    SELECT p.id, p.api_id, p.quota FROM plans p JOIN apis a ON a.id = p.api_id
+    WHERE a.slug = 'air-quality' AND p.price > 0 LIMIT 1
+  `;
+  await sql`
+    INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, used, current_period_end)
+    VALUES (${user.id}, ${paidPlanRow.api_id}, ${paidPlanRow.id}, 'active', ${paidPlanRow.quota}, 5,
+            now() - interval '1 day')
+    ON CONFLICT (user_id, api_id) DO UPDATE
+      SET status='active', current_period_end = EXCLUDED.current_period_end
+  `;
+
+  const { processRenewalsViaCron } = { processRenewalsViaCron: true };
+  if (processRenewalsViaCron && process.env.CRON_SECRET) {
+    await fetch(`${BASE}/api/cron/usage-rollup`, {
+      headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+    });
+
+    const [rolledOver] = await sql<{ used: number; ends: Date }[]>`
+      SELECT used, current_period_end AS ends FROM subscriptions
+      WHERE user_id = ${user.id} AND api_id = ${freePlanRow.api_id}
+    `;
+    check("a lapsed free plan resets its allowance", rolledOver.used === 0, `used=${rolledOver.used}`);
+    check("a lapsed free plan moves to the next period", new Date(rolledOver.ends) > new Date(), "still past");
+
+    const [lapsed] = await sql<{ status: string }[]>`
+      SELECT status FROM subscriptions WHERE user_id = ${user.id} AND api_id = ${paidPlanRow.api_id}
+    `;
+    check("a lapsed paid plan is expired", lapsed.status === "expired", lapsed.status);
+  }
+
   // Rollup job: yesterday's events must fold into usage_daily and be pruned.
   await sql`
     INSERT INTO usage_events (user_id, api_id, endpoint, method, status, latency_ms, created_at)

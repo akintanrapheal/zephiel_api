@@ -134,12 +134,18 @@ export default async function ApiDetailPage({
             {entry && <span className="text-sm text-muted">{entry.unit ? `/${entry.unit}/mo` : "/mo"}</span>}
           </p>
 
-          <a
-            href="#plans"
-            className="mt-4 block rounded-xl bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-brand-700"
-          >
-            {currentPlan ? "Change plan" : "Choose a plan"}
-          </a>
+          {api.plans.length > 0 ? (
+            <a
+              href="#plans"
+              className="mt-4 block rounded-xl bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              {currentPlan ? "Change plan" : "Choose a plan"}
+            </a>
+          ) : (
+            <p className="mt-4 rounded-xl bg-elevated px-4 py-2.5 text-center text-xs text-muted">
+              Not yet available to subscribe
+            </p>
+          )}
           {!user && (
             <p className="mt-2 text-center text-xs text-muted">
               <Link href="/signup" className="text-brand-600 hover:underline">
