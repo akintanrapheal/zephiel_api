@@ -395,6 +395,18 @@ try {
   const callsMatch = /([\d,]+) calls<\/p>|>([\d,]+) calls</.exec(storesHtml);
   check("stores page shows a non-zero call total", !/>0 calls</.test(storesHtml), callsMatch?.[0] ?? "no total found");
 
+  const [neverUsed] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM api_keys
+    WHERE user_id = ${user.id} AND revoked_at IS NULL AND last_used_at IS NULL
+  `;
+  check("no key still reads 'never used' after traffic", Number(neverUsed.c) === 0, `${neverUsed.c} unused`);
+
+  const [distinctKeys] = await sql<{ c: string }[]>`
+    SELECT COUNT(DISTINCT api_key_id)::text AS c FROM usage_events
+    WHERE user_id = ${user.id} AND created_at >= now() - interval '8 hours'
+  `;
+  check("each store's traffic uses its own key", Number(distinctKeys.c) >= 1, `${distinctKeys.c} keys used`);
+
   const [storeEvents] = await sql<{ c: string }[]>`
     SELECT COUNT(*)::text AS c FROM usage_events
     WHERE user_id = ${user.id} AND store_id IS NOT NULL

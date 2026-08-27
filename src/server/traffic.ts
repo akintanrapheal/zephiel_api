@@ -119,9 +119,14 @@ export async function generateTraffic(opts: {
       AND created_at >= now() - (${liveHours}::text || ' hours')::interval
   `;
 
-  const [keyRow] = await sql<{ id: string; store_id: string | null }[]>`
-    SELECT id, store_id FROM api_keys WHERE user_id = ${userId} AND revoked_at IS NULL LIMIT 1
+  // Each store's events must carry that store's own key, otherwise the traffic
+  // contradicts the per-store key model the dashboard presents.
+  const keyRows = await sql<{ id: string; store_id: string | null }[]>`
+    SELECT id, store_id FROM api_keys WHERE user_id = ${userId} AND revoked_at IS NULL
   `;
+  const keyForStore = new Map<string | null, string>();
+  for (const k of keyRows) keyForStore.set(k.store_id, k.id);
+  const accountKey = keyForStore.get(null) ?? keyRows[0]?.id ?? null;
 
   const buckets = (liveHours * 60) / 5;
   const events: { storeId: string | null; at: Date; status: number; latency: number }[] = [];
@@ -156,7 +161,7 @@ export async function generateTraffic(opts: {
         batch.map((e, n) => ({
           user_id: userId,
           api_id: apiId,
-          api_key_id: keyRow?.id ?? null,
+          api_key_id: keyForStore.get(e.storeId) ?? accountKey,
           store_id: e.storeId,
           endpoint: `/multistore${endpoints[n % endpoints.length]}`,
           method: "GET",
@@ -177,10 +182,39 @@ export async function generateTraffic(opts: {
     `;
   }
 
+  // A key that has served millions of calls cannot read "never used". Set each
+  // key's last_used_at from the traffic just written.
+  await sql`
+    UPDATE api_keys k
+    SET last_used_at = latest.at
+    FROM (
+      SELECT api_key_id, MAX(created_at) AS at
+      FROM usage_events
+      WHERE user_id = ${userId} AND api_key_id IS NOT NULL
+      GROUP BY api_key_id
+    ) AS latest
+    WHERE k.id = latest.api_key_id
+  `;
+
+  // Store keys with no intraday events still served the historical rollups, so
+  // date them to the end of that history rather than leaving them blank.
+  await sql`
+    UPDATE api_keys
+    SET last_used_at = ${new Date()}
+    WHERE user_id = ${userId} AND revoked_at IS NULL AND last_used_at IS NULL
+  `;
+
   return { days, rollupRows: rows.length, liveEvents: events.length, totalCalls };
 }
 
 export async function clearTraffic(userId: string, apiId: string) {
   await sql`DELETE FROM usage_daily WHERE user_id = ${userId} AND api_id = ${apiId}`;
   await sql`DELETE FROM usage_events WHERE user_id = ${userId} AND api_id = ${apiId}`;
+
+  // Leave no key claiming a last-used date the history no longer supports.
+  await sql`
+    UPDATE api_keys k SET last_used_at = NULL
+    WHERE k.user_id = ${userId}
+      AND NOT EXISTS (SELECT 1 FROM usage_events e WHERE e.api_key_id = k.id)
+  `;
 }
