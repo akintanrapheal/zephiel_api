@@ -3,13 +3,14 @@ import { sql } from "@/lib/db";
 
 /** Counts shown as badges beside the sidebar links. */
 export async function getAdminNavCounts(): Promise<Record<string, number>> {
-  const [row] = await sql<{ apis: string; cats: string; subs: string; pays: string; users: string }[]>`
+  const [row] = await sql<{ apis: string; cats: string; subs: string; pays: string; users: string; posts: string }[]>`
     SELECT
       (SELECT COUNT(*) FROM apis)::text          AS apis,
       (SELECT COUNT(*) FROM categories)::text    AS cats,
       (SELECT COUNT(*) FROM subscriptions)::text AS subs,
       (SELECT COUNT(*) FROM payments)::text      AS pays,
-      (SELECT COUNT(*) FROM users)::text         AS users
+      (SELECT COUNT(*) FROM users)::text         AS users,
+      (SELECT COUNT(*) FROM posts)::text         AS posts
   `;
 
   return {
@@ -18,6 +19,7 @@ export async function getAdminNavCounts(): Promise<Record<string, number>> {
     "/admin/subscriptions": Number(row.subs),
     "/admin/payments": Number(row.pays),
     "/admin/users": Number(row.users),
+    "/admin/posts": Number(row.posts),
   };
 }
 

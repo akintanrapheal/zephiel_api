@@ -67,7 +67,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 126 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 137 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies
@@ -120,6 +120,7 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 | `/marketplace`, `/marketplace/[slug]` | Catalog with search/filter/sort; detail page with plans, endpoints, reviews, subscribe |
 | `/categories`, `/categories/[slug]` | Category index and category-scoped catalog |
 | `/pricing`, `/docs`, `/status` | Platform plans, full API reference, per-API uptime |
+| `/blog`, `/blog/[slug]` | Database-backed posts, written and published from the admin console |
 | `/legal/terms`, `/legal/gdpr` | Terms, and a GDPR page documenting data categories, retention, subprocessors, and rights |
 | `/signup`, `/signin` | Real authentication |
 | `/dashboard` | Signed-in area with its own chrome: overview, stores, usage, keys, playground |

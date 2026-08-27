@@ -6,6 +6,10 @@ import BrandMarquee from "@/components/BrandMarks";
 import Spotlights from "@/components/home/Spotlights";
 import Audience from "@/components/home/Audience";
 import Testimonials from "@/components/home/Testimonials";
+import UseCaseExplorer from "@/components/home/UseCaseExplorer";
+import Platform from "@/components/home/Platform";
+import LatestPosts from "@/components/home/LatestPosts";
+import { getPosts } from "@/server/posts";
 
 export const revalidate = 60;
 
@@ -42,6 +46,8 @@ export default async function Home() {
     getCategoryCounts(),
     countApis(),
   ]);
+
+  const posts = await getPosts({ limit: 3 });
   const trending = all.slice(0, 6);
   const statTiles = stats(apiCount);
   const stepList = steps(apiCount);
@@ -186,11 +192,17 @@ export default async function Home() {
         </div>
       </section>
 
+      <UseCaseExplorer apis={featured} />
+
       <Spotlights apis={featured.slice(0, 3)} />
+
+      <Platform />
 
       <Audience />
 
       <Testimonials />
+
+      <LatestPosts posts={posts} />
 
       {/* Trending */}
       <section className="border-t border-line bg-surface">

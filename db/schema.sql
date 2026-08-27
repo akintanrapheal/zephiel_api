@@ -282,3 +282,32 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 
 CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);
+
+-- ----------------------------------------------------------------- posts --
+
+CREATE TABLE IF NOT EXISTS posts (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug         text UNIQUE NOT NULL,
+  title        text NOT NULL,
+  excerpt      text NOT NULL DEFAULT '',
+  body         text NOT NULL DEFAULT '',
+  tag          text NOT NULL DEFAULT 'Engineering',
+  read_minutes integer NOT NULL DEFAULT 5,
+  published    boolean NOT NULL DEFAULT true,
+  published_at timestamptz NOT NULL DEFAULT now(),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS posts_published_idx ON posts(published, published_at DESC);
+
+-- ----------------------------------------------------------- subscribers --
+
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email          text UNIQUE NOT NULL,
+  source         text NOT NULL DEFAULT 'footer',
+  confirmed      boolean NOT NULL DEFAULT true,
+  unsubscribed_at timestamptz,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);

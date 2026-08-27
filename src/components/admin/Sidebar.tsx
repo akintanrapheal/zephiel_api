@@ -20,6 +20,7 @@ export const adminNav: { section: string; items: NavItem[] }[] = [
       { href: "/admin", label: "Overview", icon: "M4 13h6V4H4v9zm0 7h6v-5H4v5zm10 0h6V11h-6v9zm0-16v5h6V4h-6z", exact: true },
       { href: "/admin/apis", label: "APIs", icon: "M8 6l-5 6 5 6M16 6l5 6-5 6" },
       { href: "/admin/categories", label: "Categories", icon: "M4 6h16M4 12h16M4 18h10" },
+      { href: "/admin/posts", label: "Posts", icon: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5zM14 3v5h5M9 13h6M9 17h4" },
     ],
   },
   {

@@ -174,6 +174,8 @@ try {
     "/admin/payments",
     "/admin/settings",
     "/admin/notifications",
+    "/admin/posts",
+    "/admin/posts/new",
   ]) {
     const res = await fetch(`${BASE}${path}`, { headers: { cookie: adminCookie }, redirect: "manual" });
     check(`admin can open ${path}`, res.status === 200, `status ${res.status}`);
@@ -635,6 +637,34 @@ try {
   check("GDPR tables are captioned", gdprHtml.includes("<caption"));
 
   check("home shows the spotlight section", homeHtml.includes("What teams build with them"));
+  check("home shows the use-case explorer", homeHtml.includes("Pick an API, see the problem it solves"));
+  check("home shows the platform pillars", homeHtml.includes("Everything behind a single integration surface"));
+  check("home shows the latest posts", homeHtml.includes("Notes on running the platform"));
+  check("footer offers a newsletter signup", homeHtml.includes('name="email"') && homeHtml.includes("Newsletter"));
+
+  // Blog is database-backed with its own pages.
+  const blogHtml = await (await fetch(`${BASE}/blog`)).text();
+  check("blog lists published posts", blogHtml.includes("min read"));
+
+  const [firstPost] = await sql<{ slug: string; title: string }[]>`
+    SELECT slug, title FROM posts WHERE published ORDER BY published_at DESC LIMIT 1
+  `;
+  const postRes = await fetch(`${BASE}/blog/${firstPost.slug}`, { redirect: "manual" });
+  check("an individual post has its own page", postRes.status === 200, `status ${postRes.status}`);
+  const postHtml = await (await fetch(`${BASE}/blog/${firstPost.slug}`)).text();
+  check("post page renders its body", postHtml.includes("Keep reading") || postHtml.length > 4000);
+
+  const draftRes = await fetch(`${BASE}/blog/definitely-not-a-post`, { redirect: "manual" });
+  check("an unknown post 404s", draftRes.status === 404, `status ${draftRes.status}`);
+
+  // Newsletter signup stores the address.
+  const subEmail = `news_${Date.now()}@zephiel.test`;
+  await submit("/", { email: subEmail }, "", 'name="email"');
+  const [subscriber] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM newsletter_subscribers WHERE email = ${subEmail}
+  `;
+  check("newsletter signup is stored", Number(subscriber.c) === 1, `${subscriber.c} rows`);
+  await sql`DELETE FROM newsletter_subscribers WHERE email = ${subEmail}`;
   check("home shows audience segments", homeHtml.includes("However far along you are"));
   check("home shows testimonials", homeHtml.includes("Fewer vendors"));
 

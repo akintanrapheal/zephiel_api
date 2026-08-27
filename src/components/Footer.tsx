@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCategories } from "@/server/catalog";
+import NewsletterForm from "./NewsletterForm";
 
 const columns = [
   {
@@ -41,6 +42,18 @@ export default async function Footer() {
   return (
     <footer className="mt-24 border-t border-line bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="mb-12 grid gap-10 border-b border-line pb-12 lg:grid-cols-[1fr_360px]">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">
+              Build with one key instead of twelve
+            </h2>
+            <p className="mt-2 max-w-md text-sm leading-7 text-muted">
+              Every API has a free tier, and your key is issued the moment you sign up.
+            </p>
+          </div>
+          <NewsletterForm />
+        </div>
+
         <div className="grid gap-10 md:grid-cols-5">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5 font-semibold tracking-tight">
