@@ -64,7 +64,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 108 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 116 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies
@@ -122,6 +122,7 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 | `/signup`, `/signin` | Real authentication |
 | `/dashboard` | Signed-in area with its own chrome: overview, stores, usage, keys, playground |
 | `/dashboard/stores` | Connect storefronts, each with its own key, and a 5-minute per-store call chart |
+| `/dashboard/billing` | Compare plans, upgrade for more calls, see what another store costs |
 | `/dashboard/playground` | Fire real gateway requests and inspect the response |
 | `/admin/login` | Administrator sign-in, separate from customer auth |
 | `/admin`, `/admin/apis`, `/admin/categories`, `/admin/users`, `/admin/subscriptions`, `/admin/payments`, `/admin/settings` | Admin console |

@@ -1,32 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useTheme } from "./ThemeProvider";
 
 export default function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
-
-  const toggle = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    try {
-      localStorage.setItem("zephiel-theme", next ? "dark" : "light");
-    } catch {
-      /* storage blocked — theme just won't persist */
-    }
-  };
+  const { theme, toggle } = useTheme();
+  const dark = theme === "dark";
 
   return (
     <button
       onClick={toggle}
-      aria-label="Toggle color theme"
+      aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      aria-pressed={dark}
       className="grid h-9 w-9 place-items-center rounded-lg border border-line text-muted transition hover:bg-elevated hover:text-ink"
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-[18px] w-[18px]">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden className="h-[18px] w-[18px]">
         {dark ? (
           <>
             <circle cx="12" cy="12" r="4" />

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { appUrl } from "@/lib/app-url";
+import ThemeProvider from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl()),
@@ -27,6 +28,7 @@ const themeScript = `
     var stored = localStorage.getItem("zephiel-theme");
     var dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
   } catch (e) {}
 })();
 `;
@@ -41,7 +43,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-screen font-sans">{children}</body>
+      <body className="min-h-screen font-sans">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

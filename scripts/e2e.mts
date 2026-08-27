@@ -141,7 +141,7 @@ try {
   check("dashboard has its own nav", dashHtml.includes('aria-label="Dashboard sections"'));
   check("dashboard shows the member-since line", dashHtml.includes("member since"));
 
-  for (const path of ["/dashboard/stores", "/dashboard/usage", "/dashboard/keys", "/dashboard/playground"]) {
+  for (const path of ["/dashboard/stores", "/dashboard/usage", "/dashboard/billing", "/dashboard/keys", "/dashboard/playground"]) {
     const res = await fetch(`${BASE}${path}`, { headers: { cookie }, redirect: "manual" });
     check(`customer can open ${path}`, res.status === 200, `status ${res.status}`);
   }
@@ -413,6 +413,41 @@ try {
       AND created_at >= now() - interval '8 hours'
   `;
   check("intraday events are attributed to stores", Number(storeEvents.c) > 20, `${storeEvents.c} store events`);
+
+  // Billing: the plan chooser must offer a genuine upgrade path.
+  const billingHtml = await (await fetch(`${BASE}/dashboard/billing`, { headers: { cookie } })).text();
+  check("billing page lists plan options", billingHtml.includes("Monthly total"));
+  check("billing page marks the current plan", billingHtml.includes("Current"));
+  check("billing page offers an upgrade", /Upgrade|More calls/.test(billingHtml));
+
+  // Upgrading a free plan to another free tier applies instantly and changes quota.
+  const [before] = await sql<{ quota: number; plan_id: string }[]>`
+    SELECT quota, plan_id FROM subscriptions WHERE id = ${msSub.id}
+  `;
+  const [target] = await sql<{ id: string; quota: number }[]>`
+    SELECT p.id, p.quota FROM plans p
+    JOIN subscriptions s ON s.api_id = p.api_id
+    WHERE s.id = ${msSub.id} AND p.price = 0 AND p.id <> ${before.plan_id}
+    LIMIT 1
+  `;
+  if (target) {
+    await submit("/dashboard/billing", {
+      planId: target.id,
+      apiSlug: "multistore",
+      units: "1",
+    }, cookie, `value="${target.id}"`);
+
+    const [after] = await sql<{ quota: number; plan_id: string }[]>`
+      SELECT quota, plan_id FROM subscriptions WHERE id = ${msSub.id}
+    `;
+    check("changing plan updates the subscription", after.plan_id === target.id, "plan unchanged");
+    check("changing plan updates the call allowance", after.quota === target.quota, `${after.quota}`);
+  }
+
+  // Theme: the pre-hydration script must set both the class and colorScheme.
+  const rootHtml = await (await fetch(`${BASE}/`)).text();
+  check("theme script sets colorScheme", rootHtml.includes("colorScheme"));
+  check("theme script reads the stored preference", rootHtml.includes("zephiel-theme"));
 
   // Rollup job: yesterday's events must fold into usage_daily and be pruned.
   await sql`

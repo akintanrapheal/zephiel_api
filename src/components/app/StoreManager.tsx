@@ -43,8 +43,13 @@ export default function StoreManager({
       <section className="rounded-2xl border border-line bg-surface p-6">
         <h2 className="text-sm font-semibold tracking-tight text-ink">Connect a store</h2>
         <p className="mt-1 text-xs text-muted">
-          Each store gets its own key, so you can attribute traffic and revoke one without touching the
-          others. Billing is ${pricePerStore} per connected store, per month.
+          Each store gets its own key, so you can attribute traffic and revoke one without touching
+          the others. Billing is ${pricePerStore} per connected store, per month — adding one takes
+          your total from ${(stores.length * pricePerStore).toLocaleString()} to{" "}
+          <span className="font-semibold text-ink">
+            ${((stores.length + 1) * pricePerStore).toLocaleString()}/mo
+          </span>
+          , applied at your next renewal.
         </p>
 
         <form action={addAction} className="mt-4 space-y-3">

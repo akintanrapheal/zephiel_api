@@ -184,7 +184,7 @@ export default function SubscriptionList({ subs }: { subs: Subscription[] }) {
                   </span>
                 )}
 
-                <Link href={`/marketplace/${s.apiSlug}#plans`} className="font-medium text-brand-600 hover:underline">
+                <Link href="/dashboard/billing" className="font-medium text-brand-600 hover:underline">
                   Change plan
                 </Link>
 
@@ -198,7 +198,10 @@ export default function SubscriptionList({ subs }: { subs: Subscription[] }) {
 
               {hot && s.status === "active" && (
                 <p className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600">
-                  {pct}% of quota used — calls start failing at 100%.
+                  {pct}% of quota used — calls start failing at 100%.{" "}
+                  <Link href="/dashboard/billing" className="font-semibold underline">
+                    Upgrade for more
+                  </Link>
                 </p>
               )}
             </div>
