@@ -3,6 +3,9 @@ import { countApis, getApis, getCategories, getCategoryCounts, getFeaturedApis }
 import ApiCard from "@/components/ApiCard";
 import CodeSamples from "@/components/CodeSamples";
 import BrandMarquee from "@/components/BrandMarks";
+import Spotlights from "@/components/home/Spotlights";
+import Audience from "@/components/home/Audience";
+import Testimonials from "@/components/home/Testimonials";
 
 export const revalidate = 60;
 
@@ -182,6 +185,12 @@ export default async function Home() {
           ))}
         </div>
       </section>
+
+      <Spotlights apis={featured.slice(0, 3)} />
+
+      <Audience />
+
+      <Testimonials />
 
       {/* Trending */}
       <section className="border-t border-line bg-surface">

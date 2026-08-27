@@ -30,6 +30,7 @@ const columns = [
       { href: "/blog", label: "Blog" },
       { href: "/contact", label: "Contact" },
       { href: "/legal/terms", label: "Terms & Privacy" },
+      { href: "/legal/gdpr", label: "GDPR compliance" },
     ],
   },
 ];

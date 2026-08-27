@@ -249,6 +249,33 @@ try {
   check("home shows the brand logo strip", homeHtml.includes("Trusted by engineering teams at"));
   check("brand marks are rendered as logos", homeHtml.includes("Brightloom"));
 
+  // ------------------------------------------------------------- content --
+  const gdpr = await fetch(`${BASE}/legal/gdpr`, { redirect: "manual" });
+  check("GDPR page is reachable", gdpr.status === 200, `status ${gdpr.status}`);
+
+  const gdprHtml = await (await fetch(`${BASE}/legal/gdpr`)).text();
+  for (const heading of [
+    "Our role",
+    "Lawful bases",
+    "What we process",
+    "Your rights",
+    "Subprocessors",
+    "International transfers",
+    "Security measures",
+    "Breach notification",
+  ]) {
+    check(`GDPR page covers "${heading}"`, gdprHtml.includes(heading));
+  }
+  check("GDPR page is linked from the footer", homeHtml.includes("/legal/gdpr"));
+  check("GDPR tables are captioned", gdprHtml.includes("<caption"));
+
+  check("home shows the spotlight section", homeHtml.includes("What teams build with them"));
+  check("home shows audience segments", homeHtml.includes("However far along you are"));
+  check("home shows testimonials", homeHtml.includes("Fewer vendors"));
+
+  const sitemapXml = await (await fetch(`${BASE}/sitemap.xml`)).text();
+  check("sitemap lists the GDPR page", sitemapXml.includes("/legal/gdpr"));
+
   // ----------------------------------------------------------- a11y basics --
   check("site pages expose a skip link", homeHtml.includes("Skip to content"));
   check("site has a main landmark", homeHtml.includes('id="main"'));
