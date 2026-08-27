@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { getStores, getStoreActivity } from "@/server/account";
+import { topUpIntraday } from "@/server/usage-maintenance";
 import StoreManager from "@/components/app/StoreManager";
 import StoreActivityChart from "@/components/app/StoreActivityChart";
 
@@ -10,6 +11,11 @@ export const metadata = { title: "Stores" };
 
 export default async function StoresPage() {
   const user = await requireUser();
+
+  // Fill the five-minute window up to now before reading it, so the chart is
+  // current rather than frozen at whenever data was last generated.
+  const [msApi] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
+  if (msApi) await topUpIntraday(user.id, msApi.id).catch(() => ({ added: 0 }));
 
   const [stores, activity, sub] = await Promise.all([
     getStores(user.id),

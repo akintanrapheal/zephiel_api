@@ -6,6 +6,7 @@ import {
   updateSubscription,
   generateDemoTraffic,
   clearDemoTraffic,
+  setDemoTraffic,
 } from "@/server/actions/customers";
 import type { FormState } from "@/server/actions/admin";
 import { Field, Message, Select, Submit } from "./Form";
@@ -91,9 +92,11 @@ export function SubscriptionForm({
 export function TrafficForm({
   subscriptionId,
   defaultFrom,
+  demoTraffic,
 }: {
   subscriptionId: string;
   defaultFrom: string;
+  demoTraffic: boolean;
 }) {
   const [state, action] = useActionState<FormState, FormData>(generateDemoTraffic, null);
 
@@ -117,6 +120,26 @@ export function TrafficForm({
           className="w-40"
         />
         <Submit>Generate history</Submit>
+      </form>
+
+      <form action={setDemoTraffic} className="rounded-xl border border-line bg-bg p-4">
+        <input type="hidden" name="subscriptionId" value={subscriptionId} />
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            name="enabled"
+            defaultChecked={demoTraffic}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="mt-0.5 h-4 w-4 accent-brand-600"
+          />
+          <span>
+            <span className="block text-sm font-medium text-ink">Keep traffic flowing</span>
+            <span className="mt-0.5 block text-xs leading-6 text-muted">
+              Tops the five-minute window up to the present each time the stores page is opened, and
+              extends the daily curve nightly, so the charts never look frozen.
+            </span>
+          </span>
+        </label>
       </form>
 
       <div className="flex flex-wrap items-center gap-3">

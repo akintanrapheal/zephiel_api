@@ -247,3 +247,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS usage_daily_key_idx
   ON usage_daily(user_id, api_id, day, COALESCE(store_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 CREATE INDEX IF NOT EXISTS usage_daily_user_day_idx ON usage_daily(user_id, day);
+
+-- Keep a demonstration account's charts alive: when set, the intraday window
+-- is topped up on read and the daily curve is extended by the rollup job.
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS demo_traffic boolean NOT NULL DEFAULT false;

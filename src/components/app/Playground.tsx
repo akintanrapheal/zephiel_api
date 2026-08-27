@@ -33,7 +33,21 @@ export default function Playground({ apis }: { apis: PlaygroundApi[] }) {
   const [error, setError] = useState<string | null>(null);
 
   const api = apis.find((a) => a.slug === slug);
-  const url = `/api/v1/${slug}${path}`;
+
+  // Endpoints declare path parameters as {ip}, {id} and so on. Sending those
+  // literally would 404, so they are substituted with a usable sample.
+  const samples: Record<string, string> = {
+    ip: "8.8.8.8",
+    id: "st_demo",
+    slug: "example",
+    hash: "5baa61e4",
+    prefix: "5baa6",
+    domain: "example.com",
+    asset: "BTC",
+    jobId: "job_demo",
+  };
+  const resolved = path.replace(/\{(\w+)\}/g, (_, name: string) => samples[name] ?? "demo");
+  const url = `/api/v1/${slug}${resolved}`;
 
   const onApiChange = (next: string) => {
     setSlug(next);
@@ -157,6 +171,11 @@ export default function Playground({ apis }: { apis: PlaygroundApi[] }) {
             <code className="block break-all font-mono text-xs text-ink">
               <span className="font-bold text-accent">GET</span> {url}
             </code>
+            {resolved !== path && (
+              <p className="mt-1.5 text-[11px] text-muted">
+                Path parameters filled with sample values.
+              </p>
+            )}
           </div>
 
           <button

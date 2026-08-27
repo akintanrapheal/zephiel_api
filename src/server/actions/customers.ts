@@ -159,6 +159,24 @@ export async function generateDemoTraffic(_prev: FormState, formData: FormData):
   };
 }
 
+/** Keep a demonstration account's charts advancing without manual regeneration. */
+export async function setDemoTraffic(formData: FormData) {
+  await requireAdmin();
+
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  const enabled = formData.get("enabled") === "on";
+  if (!subscriptionId) return;
+
+  const [sub] = await sql<{ user_id: string }[]>`
+    UPDATE subscriptions SET demo_traffic = ${enabled}, updated_at = now()
+    WHERE id = ${subscriptionId}
+    RETURNING user_id
+  `;
+
+  revalidatePath(`/admin/users/${sub?.user_id ?? ""}`);
+  revalidatePath("/dashboard/stores");
+}
+
 export async function clearDemoTraffic(formData: FormData) {
   await requireAdmin();
   const subscriptionId = String(formData.get("subscriptionId") ?? "");

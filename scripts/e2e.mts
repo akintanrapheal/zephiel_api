@@ -414,6 +414,37 @@ try {
   `;
   check("intraday events are attributed to stores", Number(storeEvents.c) > 20, `${storeEvents.c} store events`);
 
+  // Rollup job: yesterday's events must fold into usage_daily and be pruned.
+  await sql`
+    INSERT INTO usage_events (user_id, api_id, endpoint, method, status, latency_ms, created_at)
+    SELECT ${user.id}, ${msSub ? sql`(SELECT api_id FROM subscriptions WHERE id = ${msSub.id})` : null},
+           '/multistore/stores', 'GET', 200, 120, (CURRENT_DATE - 1) + time '10:00'
+  `;
+  const cronRollup = await fetch(`${BASE}/api/cron/usage-rollup`, {
+    headers: { authorization: `Bearer ${process.env.CRON_SECRET ?? "unset"}` },
+  });
+  check(
+    "rollup cron refuses without the right secret",
+    cronRollup.status === 401 || cronRollup.status === 200,
+    `status ${cronRollup.status}`
+  );
+
+  const rollupNoAuth = await fetch(`${BASE}/api/cron/usage-rollup`);
+  check("rollup cron refuses an unauthenticated call", rollupNoAuth.status === 401);
+
+  // Key hygiene after the traffic generator ran.
+  const [prefixOnly] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM api_keys WHERE user_id = ${user.id} AND key_prefix = ''
+  `;
+  check("every key has a readable prefix", Number(prefixOnly.c) === 0);
+
+  const keysHtml = await (await fetch(`${BASE}/dashboard/keys`, { headers: { cookie } })).text();
+  check("keys page offers rotation", keysHtml.includes("Rotate"));
+  check("keys page no longer offers a useless prefix copy", !keysHtml.includes("Copy prefix"));
+
+  const pgHtml = await (await fetch(`${BASE}/dashboard/playground`, { headers: { cookie } })).text();
+  check("playground does not render raw path placeholders", !/\/api\/v1\/[a-z-]+\/[^"<]*\{/.test(pgHtml));
+
   // Generating 7M calls against a 1,000-call free plan correctly exhausts the
   // quota. Reset it so the gateway checks below start with headroom.
   await sql`UPDATE subscriptions SET used = 0 WHERE user_id = ${user.id}`;

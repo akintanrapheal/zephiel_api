@@ -21,14 +21,16 @@ export async function getSubscriptions(userId: string): Promise<Subscription[]> 
 export async function getApiKeys(userId: string): Promise<ApiKey[]> {
   return sql<ApiKey[]>`
     SELECT
-      id, label, scope,
-      key_prefix   AS "keyPrefix",
-      last_used_at AS "lastUsedAt",
-      revoked_at   AS "revokedAt",
-      created_at   AS "createdAt"
-    FROM api_keys
-    WHERE user_id = ${userId}
-    ORDER BY created_at
+      k.id, k.label, k.scope,
+      k.key_prefix   AS "keyPrefix",
+      k.last_used_at AS "lastUsedAt",
+      k.revoked_at   AS "revokedAt",
+      k.created_at   AS "createdAt",
+      st.name        AS "storeName"
+    FROM api_keys k
+    LEFT JOIN stores st ON st.id = k.store_id
+    WHERE k.user_id = ${userId}
+    ORDER BY k.created_at
   `;
 }
 

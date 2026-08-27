@@ -93,6 +93,8 @@ export type ApiKey = {
   id: string;
   label: string;
   scope: string;
+  /** Set when the key is scoped to one storefront. */
+  storeName?: string | null;
   keyPrefix: string;
   lastUsedAt: Date | null;
   revokedAt: Date | null;

@@ -29,11 +29,12 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       status: string;
       units: number;
       used: number;
+      demo_traffic: boolean;
       quota: number;
       ends: Date | null;
     }[]
   >`
-    SELECT s.id, s.api_id, a.name AS api_name, s.plan_id, s.status, s.units, s.used, s.quota,
+    SELECT s.id, s.api_id, a.name AS api_name, s.plan_id, s.status, s.units, s.used, s.quota, s.demo_traffic,
            s.current_period_end AS ends
     FROM subscriptions s
     JOIN apis a ON a.id = s.api_id
@@ -106,6 +107,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 <TrafficForm
                   subscriptionId={s.id}
                   defaultFrom={iso(user.created_at) || "2026-06-02"}
+                  demoTraffic={s.demo_traffic}
                 />
               </div>
             </div>
