@@ -9,18 +9,21 @@ import PasswordForm from "@/components/admin/PasswordForm";
 import EmailSettingsForm from "@/components/admin/EmailSettingsForm";
 import { getEmailConfig } from "@/lib/email";
 import { REMINDER_DAYS } from "@/server/notifications";
+import { getSchemaStatus } from "@/server/schema-status";
+import SchemaCard from "@/components/admin/SchemaCard";
 import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
 export default async function AdminSettingsPage() {
-  const [admin, config, secret, settings, email] = await Promise.all([
+  const [admin, config, secret, settings, email, schema] = await Promise.all([
     requireAdmin(),
     getPaystackConfig(),
     getSecretStatus("paystack_secret_key"),
     getSettings(),
     getEmailConfig(),
+    getSchemaStatus(),
   ]);
 
   return (
@@ -29,6 +32,14 @@ export default async function AdminSettingsPage() {
         title="Settings"
         description="Payment credentials and platform configuration."
       />
+
+      <Card title="Database schema" padded>
+        <SchemaCard
+          missingTables={schema.missingTables}
+          missingColumns={schema.missingColumns}
+          upToDate={schema.upToDate}
+        />
+      </Card>
 
       <Card title="Paystack" padded>
         <div className="mb-5 flex flex-wrap items-center gap-3">

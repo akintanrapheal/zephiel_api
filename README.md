@@ -38,6 +38,9 @@ not set it generates a random one — save it from the output, because it is not
   # DATABASE_URL=postgres://postgres:zephiel@localhost:55432/zephiel
   ```
 
+After a deploy that changes `db/schema.sql`, apply it from **Admin → Settings → Database schema**, which
+reports what is missing and applies it in one click. `npm run db:migrate` does the same from a terminal.
+
 `db:migrate` is idempotent, and `db:seed` upserts by slug — re-running either is safe and won't
 disturb users, subscriptions, or payments. `npm run db:reset` drops every table (development only).
 
@@ -61,7 +64,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 90 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 92 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies

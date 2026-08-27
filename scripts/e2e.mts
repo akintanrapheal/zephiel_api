@@ -223,6 +223,12 @@ try {
   );
 
   // ------------------------------------------------------------ settings --
+  const schemaHtml = await (
+    await fetch(`${BASE}/admin/settings`, { headers: { cookie: adminCookie } })
+  ).text();
+  check("settings page reports schema status", schemaHtml.includes("Database schema"));
+  check("schema reports up to date", schemaHtml.includes("Up to date"), "drift reported");
+
   const settingsHtml = await (
     await fetch(`${BASE}/admin/settings`, { headers: { cookie: adminCookie } })
   ).text();

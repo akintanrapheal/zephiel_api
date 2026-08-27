@@ -8,6 +8,7 @@ import { clearSetting, setSetting } from "@/lib/settings";
 import { getPaystackConfig, testSecretKey } from "@/lib/paystack";
 import { getEmailConfig, sendEmail, emailShell } from "@/lib/email";
 import { sweepRenewalReminders } from "@/server/notifications";
+import { applySchema, getSchemaStatus } from "@/server/schema-status";
 import type { FormState } from "./admin";
 
 const paystackSchema = z.object({
@@ -188,6 +189,46 @@ async function sweepRenewalSweepSafe() {
     console.error("Renewal sweep failed:", err);
     return { considered: 0, sent: 0, skipped: 0, failed: 0, details: [] };
   }
+}
+
+/**
+ * Apply the schema from the admin console.
+ *
+ * The file only contains IF NOT EXISTS statements, so this creates what is
+ * missing and leaves everything else — including all data — untouched.
+ */
+export async function runMigrations(_prev: FormState): Promise<FormState> {
+  await requireAdmin();
+
+  const before = await getSchemaStatus();
+
+  try {
+    await applySchema();
+  } catch (err) {
+    console.error("Migration failed:", err);
+    return {
+      error: `Migration failed: ${err instanceof Error ? err.message : "unknown error"}`,
+    };
+  }
+
+  const after = await getSchemaStatus();
+  revalidatePath("/admin/settings");
+
+  const createdTables = before.missingTables.filter((t) => !after.missingTables.includes(t));
+  const createdColumns = before.missingColumns.filter((c) => !after.missingColumns.includes(c));
+  const changes = [...createdTables, ...createdColumns];
+
+  if (!after.upToDate) {
+    return {
+      error: `Applied, but still missing: ${[...after.missingTables, ...after.missingColumns].join(", ")}`,
+    };
+  }
+
+  return {
+    ok: changes.length
+      ? `Schema up to date. Added ${changes.join(", ")}.`
+      : "Schema was already up to date — nothing changed.",
+  };
 }
 
 const passwordSchema = z
