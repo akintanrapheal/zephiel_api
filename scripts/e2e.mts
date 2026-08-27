@@ -389,6 +389,19 @@ try {
   const usageHtml = await (await fetch(`${BASE}/dashboard/usage`, { headers: { cookie } })).text();
   check("usage page reflects the generated history", /[\d,]{7,}/.test(usageHtml), "no large totals rendered");
 
+  // The stores chart must actually render the generated activity, not just
+  // have the rows in the database.
+  const storesHtml = await (await fetch(`${BASE}/dashboard/stores`, { headers: { cookie } })).text();
+  const callsMatch = /([\d,]+) calls<\/p>|>([\d,]+) calls</.exec(storesHtml);
+  check("stores page shows a non-zero call total", !/>0 calls</.test(storesHtml), callsMatch?.[0] ?? "no total found");
+
+  const [storeEvents] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM usage_events
+    WHERE user_id = ${user.id} AND store_id IS NOT NULL
+      AND created_at >= now() - interval '8 hours'
+  `;
+  check("intraday events are attributed to stores", Number(storeEvents.c) > 20, `${storeEvents.c} store events`);
+
   // Generating 7M calls against a 1,000-call free plan correctly exhausts the
   // quota. Reset it so the gateway checks below start with headroom.
   await sql`UPDATE subscriptions SET used = 0 WHERE user_id = ${user.id}`;
