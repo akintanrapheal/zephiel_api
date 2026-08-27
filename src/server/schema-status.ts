@@ -18,6 +18,11 @@ export const EXPECTED_TABLES = [
   "settings",
   "stores",
   "notifications",
+  "reviews",
+  "password_resets",
+  "posts",
+  "newsletter_subscribers",
+  "usage_daily",
 ] as const;
 
 /** Columns added after their table was first created, which drift most often. */
@@ -26,6 +31,8 @@ export const EXPECTED_COLUMNS: { table: string; column: string }[] = [
   { table: "stores", column: "domain" },
   { table: "api_keys", column: "store_id" },
   { table: "usage_events", column: "store_id" },
+  { table: "subscriptions", column: "demo_traffic" },
+  { table: "stores", column: "domain" },
 ];
 
 export type SchemaStatus = {

@@ -1,26 +1,39 @@
 import "server-only";
 import { sql } from "@/lib/db";
 
-/** Counts shown as badges beside the sidebar links. */
+/**
+ * Counts shown as badges beside the sidebar links.
+ *
+ * Counted per table, tolerating any that does not exist yet. This runs in the
+ * admin layout, so a single missing table would otherwise take down every page
+ * in the console — including Settings, which is where migrations are applied.
+ * A console that cannot be reached when the schema is behind is useless
+ * precisely when it is needed.
+ */
 export async function getAdminNavCounts(): Promise<Record<string, number>> {
-  const [row] = await sql<{ apis: string; cats: string; subs: string; pays: string; users: string; posts: string }[]>`
-    SELECT
-      (SELECT COUNT(*) FROM apis)::text          AS apis,
-      (SELECT COUNT(*) FROM categories)::text    AS cats,
-      (SELECT COUNT(*) FROM subscriptions)::text AS subs,
-      (SELECT COUNT(*) FROM payments)::text      AS pays,
-      (SELECT COUNT(*) FROM users)::text         AS users,
-      (SELECT COUNT(*) FROM posts)::text         AS posts
-  `;
+  const tables: [string, string][] = [
+    ["/admin/apis", "apis"],
+    ["/admin/categories", "categories"],
+    ["/admin/posts", "posts"],
+    ["/admin/subscriptions", "subscriptions"],
+    ["/admin/payments", "payments"],
+    ["/admin/users", "users"],
+  ];
 
-  return {
-    "/admin/apis": Number(row.apis),
-    "/admin/categories": Number(row.cats),
-    "/admin/subscriptions": Number(row.subs),
-    "/admin/payments": Number(row.pays),
-    "/admin/users": Number(row.users),
-    "/admin/posts": Number(row.posts),
-  };
+  const counts: Record<string, number> = {};
+
+  await Promise.all(
+    tables.map(async ([href, table]) => {
+      try {
+        const [row] = await sql.unsafe(`SELECT COUNT(*)::text AS c FROM ${table}`);
+        counts[href] = Number(row.c);
+      } catch {
+        // Table not migrated yet — omit the badge rather than fail the page.
+      }
+    })
+  );
+
+  return counts;
 }
 
 export async function getAdminStats() {

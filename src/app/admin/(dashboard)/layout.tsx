@@ -6,6 +6,7 @@ import { signOut } from "@/server/actions/auth";
 import Sidebar from "@/components/admin/Sidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { getAdminNavCounts } from "@/server/admin";
+import { getSchemaStatus } from "@/server/schema-status";
 
 export const metadata: Metadata = {
   title: { default: "Console", template: "%s | Zephiel Console" },
@@ -21,7 +22,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect("/admin/login?error=session");
   if (user.role !== "admin") redirect("/admin/login?error=forbidden");
 
-  const counts = await getAdminNavCounts();
+  const [counts, schema] = await Promise.all([
+    getAdminNavCounts().catch(() => ({}) as Record<string, number>),
+    getSchemaStatus().catch(() => ({ missingTables: [], missingColumns: [], upToDate: true })),
+  ]);
 
   return (
     <div className="min-h-screen bg-bg">
@@ -73,6 +77,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Sidebar counts={counts} variant="rail" />
         </div>
         <main id="admin-main" tabIndex={-1} className="min-w-0 flex-1 pb-16">
+          {!schema.upToDate && (
+            <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3">
+              <p className="flex-1 text-sm text-muted">
+                <span className="font-semibold text-ink">The database schema is behind this build.</span>{" "}
+                Missing:{" "}
+                <code className="font-mono text-xs">
+                  {[...schema.missingTables, ...schema.missingColumns].join(", ")}
+                </code>
+              </p>
+              <Link
+                href="/admin/settings"
+                className="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+              >
+                Run migrations
+              </Link>
+            </div>
+          )}
           {children}
         </main>
       </div>
