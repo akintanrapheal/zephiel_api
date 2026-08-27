@@ -4,6 +4,9 @@ import { activateFromReference } from "@/server/billing";
 
 export const dynamic = "force-dynamic";
 
+/** Paystack retries for 24 hours; anything older is a replay, not a retry. */
+const MAX_EVENT_AGE_MS = 25 * 60 * 60 * 1000;
+
 /**
  * Paystack webhook receiver.
  *
@@ -22,11 +25,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  let event: { event?: string; data?: { reference?: string } };
+  let event: { event?: string; data?: { reference?: string; paid_at?: string; created_at?: string } };
   try {
     event = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  // A valid signature stays valid forever, so a captured payload could be
+  // replayed. Refuse anything older than the window Paystack retries within.
+  const stamp = event.data?.paid_at ?? event.data?.created_at;
+  if (stamp) {
+    const age = Date.now() - new Date(stamp).getTime();
+    if (Number.isFinite(age) && age > MAX_EVENT_AGE_MS) {
+      return NextResponse.json({ error: "Event too old" }, { status: 400 });
+    }
   }
 
   const reference = event.data?.reference;

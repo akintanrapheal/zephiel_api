@@ -67,7 +67,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 119 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 126 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies
@@ -108,8 +108,7 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 - **Paid checkout needs your Paystack keys.** Without `PAYSTACK_SECRET_KEY` the subscribe button on a
   paid plan shows an explanatory message and free plans still work. The e2e suite covers signature
   verification but not a real card charge.
-- **No password reset or email delivery.**
-- Uptime bars on `/status` and the review lists are still illustrative.
+- Uptime bars on `/status` are still illustrative; reviews are real rows, seeded from demonstration accounts.
 
 ---
 

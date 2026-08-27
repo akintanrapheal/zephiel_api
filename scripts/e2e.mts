@@ -541,6 +541,79 @@ try {
   check("home shows the brand logo strip", homeHtml.includes("Trusted by engineering teams at"));
   check("brand marks are rendered as logos", homeHtml.includes("Brightloom"));
 
+  // ------------------------------------------------------------- reviews --
+  console.log("\nReviews & security");
+
+  const [reviewApi] = await sql<{ id: string; slug: string; rating: string; reviews: number }[]>`
+    SELECT id, slug, rating, reviews FROM apis WHERE slug = 'ip-intelligence' LIMIT 1
+  `;
+  // React separates adjacent JSX expressions with comment markers, so strip
+  // them before matching rendered text.
+  const detail = (await (await fetch(`${BASE}/marketplace/${reviewApi.slug}`)).text()).replace(
+    /<!--[\s\S]*?-->/g,
+    ""
+  );
+  check(
+    "listing shows a real review count",
+    detail.includes(`${reviewApi.reviews} review`),
+    `expected ${reviewApi.reviews}`
+  );
+
+  // The distribution and the average must come from the same rows.
+  const [computed] = await sql<{ avg: string; n: string }[]>`
+    SELECT ROUND(AVG(rating)::numeric, 1)::text AS avg, COUNT(*)::text AS n
+    FROM reviews WHERE api_id = ${reviewApi.id}
+  `;
+  check(
+    "stored rating matches its reviews",
+    Number(reviewApi.rating) === Number(computed.avg),
+    `stored ${reviewApi.rating} vs computed ${computed.avg}`
+  );
+
+  // A non-subscriber cannot review.
+  const [otherApi] = await sql<{ id: string; slug: string }[]>`
+    SELECT id, slug FROM apis WHERE slug = 'pdf-toolkit' LIMIT 1
+  `;
+  await sql`DELETE FROM subscriptions WHERE user_id = ${user.id} AND api_id = ${otherApi.id}`;
+  const sneak = await submit(`/marketplace/${otherApi.slug}`, {
+    apiId: otherApi.id,
+    apiSlug: otherApi.slug,
+    rating: "5",
+    body: "Trying to review without subscribing at all.",
+  }, cookie, 'name="body"').catch(() => null);
+  const [sneaked] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM reviews WHERE user_id = ${user.id} AND api_id = ${otherApi.id}
+  `;
+  check("a non-subscriber cannot review", Number(sneaked.c) === 0, `status ${sneak?.status ?? "n/a"}`);
+
+  // Password reset pages exist and a bad token is refused.
+  const forgot = await fetch(`${BASE}/forgot`);
+  check("forgot-password page loads", forgot.status === 200, `status ${forgot.status}`);
+  const resetNoToken = await (await fetch(`${BASE}/reset`)).text();
+  check("reset page without a token explains itself", resetNoToken.includes("missing its token"));
+
+  const badReset = await submit("/reset?token=not-a-real-token", {
+    token: "not-a-real-token",
+    password: "abcdefghijkl",
+    confirm: "abcdefghijkl",
+  }, "", 'name="password"');
+  check("an invalid reset token is refused", badReset.status === 200, `status ${badReset.status}`);
+
+  // Webhook replay protection.
+  const stale = JSON.stringify({
+    event: "charge.success",
+    data: { reference: "old-ref", paid_at: new Date(Date.now() - 40 * 60 * 60 * 1000).toISOString() },
+  });
+  if (process.env.PAYSTACK_SECRET_KEY) {
+    const sig = createHmac("sha512", process.env.PAYSTACK_SECRET_KEY).update(stale).digest("hex");
+    const replayed = await fetch(`${BASE}/api/paystack/webhook`, {
+      method: "POST",
+      body: stale,
+      headers: { "content-type": "application/json", "x-paystack-signature": sig },
+    });
+    check("a correctly signed but stale event is refused", replayed.status === 400, `status ${replayed.status}`);
+  }
+
   // ------------------------------------------------------------- content --
   const gdpr = await fetch(`${BASE}/legal/gdpr`, { redirect: "manual" });
   check("GDPR page is reachable", gdpr.status === 200, `status ${gdpr.status}`);

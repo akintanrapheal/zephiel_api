@@ -62,6 +62,25 @@ async function handle(
     return fail(403, "not_subscribed", `You have no active subscription for ${api.name}.`);
   }
 
+  // Per-minute rate limit, parsed from the plan's own label so the number
+  // enforced is the number advertised.
+  const perMinute = Number(/(\d[\d,]*)\s*(?:req|request)/i.exec(sub.rate_limit)?.[1]?.replace(/,/g, "") ?? 0);
+
+  if (perMinute > 0) {
+    const [recent] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM usage_events
+      WHERE api_key_id = ${key.id} AND created_at > now() - interval '1 minute'
+    `;
+
+    if (Number(recent.c) >= perMinute) {
+      return fail(429, "rate_limited", `Plan rate limit of ${sub.rate_limit} exceeded.`, {
+        "X-RateLimit-Limit": String(sub.quota),
+        "X-RateLimit-Remaining": String(Math.max(0, sub.quota - sub.used)),
+        "Retry-After": "60",
+      });
+    }
+  }
+
   if (sub.used >= sub.quota) {
     return fail(429, "quota_exceeded", `Monthly quota of ${sub.quota.toLocaleString()} used.`, {
       "X-RateLimit-Limit": String(sub.quota),

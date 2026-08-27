@@ -251,3 +251,34 @@ CREATE INDEX IF NOT EXISTS usage_daily_user_day_idx ON usage_daily(user_id, day)
 -- Keep a demonstration account's charts alive: when set, the intraday window
 -- is topped up on read and the daily curve is extended by the rollup job.
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS demo_traffic boolean NOT NULL DEFAULT false;
+
+-- --------------------------------------------------------------- reviews --
+
+-- One review per customer per API. Ratings shown on a listing are computed
+-- from these rows, so the distribution can never contradict the average.
+CREATE TABLE IF NOT EXISTS reviews (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  api_id     uuid NOT NULL REFERENCES apis(id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating     integer NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  title      text NOT NULL DEFAULT '',
+  body       text NOT NULL DEFAULT '',
+  role       text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (api_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS reviews_api_idx ON reviews(api_id, created_at DESC);
+
+-- -------------------------------------------------------- password resets --
+
+-- Only the digest is stored, so a leaked table cannot be used to reset anyone.
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash text PRIMARY KEY,
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at timestamptz NOT NULL,
+  used_at    timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);

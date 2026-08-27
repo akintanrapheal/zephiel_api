@@ -5,6 +5,8 @@ import type { Api } from "@/lib/types";
 import CodeSamples from "./CodeSamples";
 import PlanCard from "./PlanCard";
 import { cn } from "@/lib/utils";
+import ReviewForm from "./ReviewForm";
+import type { Review, ReviewSummary } from "@/server/reviews";
 
 const tabs = ["Overview", "Endpoints", "Pricing", "Reviews"] as const;
 type Tab = (typeof tabs)[number];
@@ -16,28 +18,21 @@ const methodStyles: Record<string, string> = {
   DELETE: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
 };
 
-const sampleReviews = [
-  {
-    name: "Amara O.",
-    role: "Staff Engineer, Fintech",
-    rating: 5,
-    body: "Swapped out three separate vendors for this. The response shape is consistent and the free tier was enough to prototype the whole integration in an afternoon.",
-  },
-  {
-    name: "Daniel K.",
-    role: "CTO, Logistics SaaS",
-    rating: 5,
-    body: "Latency has been steady under 100ms from eu-west for six months. Support answered a rate-limit question in under an hour on the Pro plan.",
-  },
-  {
-    name: "Priya S.",
-    role: "Backend Developer",
-    rating: 4,
-    body: "Docs are clear and the code samples actually run. Would like deeper filtering on the batch endpoint, but it does what it says.",
-  },
-];
-
-export default function ApiTabs({ api, currentPlan }: { api: Api; currentPlan?: string | null }) {
+export default function ApiTabs({
+  api,
+  currentPlan,
+  reviews,
+  summary,
+  canReview,
+  ownReview,
+}: {
+  api: Api;
+  currentPlan?: string | null;
+  reviews: Review[];
+  summary: ReviewSummary;
+  canReview: boolean;
+  ownReview: { rating: number; title: string; body: string; role: string } | null;
+}) {
   const [tab, setTab] = useState<Tab>("Overview");
   const perUnit = api.plans.find((p) => p.unit)?.unit;
 
@@ -57,7 +52,7 @@ export default function ApiTabs({ api, currentPlan }: { api: Api; currentPlan?: 
           >
             {t}
             {t === "Reviews" && (
-              <span className="ml-1.5 text-xs text-muted">{api.reviews.toLocaleString()}</span>
+              <span className="ml-1.5 text-xs text-muted">{summary.count.toLocaleString()}</span>
             )}
           </button>
         ))}
@@ -168,46 +163,62 @@ export default function ApiTabs({ api, currentPlan }: { api: Api; currentPlan?: 
 
         <div hidden={tab !== "Reviews"}>
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-line bg-surface p-6">
-              <div>
-                <p className="text-4xl font-semibold tracking-tight text-ink">{api.rating.toFixed(1)}</p>
-                <p className="mt-1 text-sm text-muted">{api.reviews.toLocaleString()} reviews</p>
-              </div>
-              <div className="flex-1 space-y-1.5">
-                {[5, 4, 3, 2, 1].map((star, i) => {
-                  const pct = [78, 16, 4, 1, 1][i];
-                  return (
-                    <div key={star} className="flex items-center gap-3 text-xs text-muted">
-                      <span className="w-3">{star}</span>
+            {summary.count === 0 ? (
+              <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
+                No reviews yet.
+                {canReview ? " Be the first." : " Only customers who have subscribed can review."}
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-line bg-surface p-6">
+                <div>
+                  <p className="text-4xl font-semibold tracking-tight text-ink">
+                    {summary.average.toFixed(1)}
+                  </p>
+                  <p className="mt-1 text-sm text-muted">
+                    {summary.count.toLocaleString()} review{summary.count === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  {summary.distribution.map((d) => (
+                    <div key={d.stars} className="flex items-center gap-3 text-xs text-muted">
+                      <span className="w-3">{d.stars}</span>
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-elevated">
-                        <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
+                        <div
+                          className="h-full rounded-full bg-amber-400"
+                          style={{ width: `${d.percent}%` }}
+                        />
                       </div>
-                      <span className="w-8 text-right">{pct}%</span>
+                      <span className="w-8 text-right tabular-nums">{d.percent}%</span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {sampleReviews.map((r) => (
-              <div key={r.name} className="rounded-2xl border border-line bg-surface p-6">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-elevated text-xs font-semibold text-ink">
-                    {r.name.slice(0, 1)}
+            {canReview && <ReviewForm apiId={api.id!} apiSlug={api.slug} existing={ownReview} />}
+
+            {reviews.map((r) => (
+              <div key={r.id} className="rounded-2xl border border-line bg-surface p-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-elevated text-xs font-semibold text-ink">
+                    {(r.authorName || "?").slice(0, 1).toUpperCase()}
                   </span>
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{r.name}</p>
-                    <p className="text-xs text-muted">{r.role}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {r.authorName || "Customer"}
+                    </p>
+                    {r.role && <p className="truncate text-xs text-muted">{r.role}</p>}
                   </div>
-                  <span className="ml-auto flex gap-0.5 text-amber-500">
+                  <span className="ml-auto flex gap-0.5 text-amber-500" title={`${r.rating} out of 5`}>
                     {Array.from({ length: r.rating }).map((_, i) => (
-                      <svg key={i} viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+                      <svg key={i} viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-3.5 w-3.5">
                         <path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9L12 2.6z" />
                       </svg>
                     ))}
                   </span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-muted">{r.body}</p>
+                {r.title && <p className="mt-3 text-sm font-semibold text-ink">{r.title}</p>}
+                <p className="mt-1.5 text-sm leading-6 text-muted">{r.body}</p>
               </div>
             ))}
           </div>

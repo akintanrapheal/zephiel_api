@@ -38,6 +38,14 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             autoComplete={isSignup ? "new-password" : "current-password"}
           />
 
+          {!isSignup && (
+            <div className="flex justify-end">
+              <Link href="/forgot" className="text-xs font-medium text-brand-600 hover:text-brand-700">
+                Forgot password?
+              </Link>
+            </div>
+          )}
+
           {state?.error && (
             <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-2.5 text-sm text-rose-600">
               {state.error}

@@ -104,6 +104,81 @@ try {
     }
   }
 
+  // --- reviews -------------------------------------------------------------
+  // Ratings shown on a listing are computed from these rows, so the seed has
+  // to produce a set whose average is the intended rating rather than writing
+  // a number and a contradicting review.
+  const reviewers = [
+    { email: "amara@zephiel.dev", name: "Amara Okonkwo", role: "Engineering Lead" },
+    { email: "daniel@zephiel.dev", name: "Daniel Kessler", role: "CTO" },
+    { email: "priya@zephiel.dev", name: "Priya Sundaram", role: "Staff Engineer" },
+    { email: "tomas@zephiel.dev", name: "Tomas Ferreira", role: "Platform Engineer" },
+    { email: "lin@zephiel.dev", name: "Lin Zhao", role: "Backend Developer" },
+  ];
+
+  const reviewerIds: string[] = [];
+  for (const r of reviewers) {
+    const [row] = await sql<{ id: string }[]>`
+      INSERT INTO users (email, name, password_hash, role)
+      VALUES (${r.email}, ${r.name}, ${await hashPassword(randomBytes(24).toString("hex"))}, 'customer')
+      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+      RETURNING id
+    `;
+    reviewerIds.push(row.id);
+  }
+
+  const bodies = [
+    { title: "Consistent and quick to integrate",
+      body: "Response shapes match the docs exactly, and the free tier covered the whole prototype before anyone had to approve a purchase order." },
+    { title: "Replaced three vendors",
+      body: "One key and one invoice instead of three of each. Support answered a rate-limit question the same afternoon." },
+    { title: "Good, with room to grow",
+      body: "Does what it says and the samples run unmodified. I would like deeper filtering on the batch endpoint." },
+    { title: "Latency has held up",
+      body: "Steady under a hundred milliseconds from eu-west for months, and the status page matched what we actually observed." },
+    { title: "Solid, unglamorous, reliable",
+      body: "It has not surprised us once in six months, which is the highest compliment I can pay a dependency." },
+  ];
+
+  /** Ratings for `n` reviewers whose mean is as close to `target` as possible. */
+  function ratingsFor(target: number, n: number) {
+    const totalWanted = Math.round(target * n);
+    const base = Math.floor(totalWanted / n);
+    let remainder = totalWanted - base * n;
+
+    return Array.from({ length: n }, (_, i) => {
+      const bump = remainder > 0 ? 1 : 0;
+      if (remainder > 0) remainder -= 1;
+      return Math.min(5, Math.max(1, base + bump - (i === n - 1 && base + bump > 5 ? 1 : 0)));
+    });
+  }
+
+  console.log("Seeding reviews...");
+  for (const a of apis) {
+    const [row] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = ${a.slug} LIMIT 1`;
+    if (!row) continue;
+
+    const ratings = ratingsFor(a.rating, reviewers.length);
+
+    for (const [i, reviewerId] of reviewerIds.entries()) {
+      await sql`
+        INSERT INTO reviews (api_id, user_id, rating, title, body, role)
+        VALUES (${row.id}, ${reviewerId}, ${ratings[i]}, ${bodies[i].title},
+                ${bodies[i].body}, ${reviewers[i].role})
+        ON CONFLICT (api_id, user_id) DO UPDATE
+          SET rating = EXCLUDED.rating, title = EXCLUDED.title, body = EXCLUDED.body
+      `;
+    }
+
+    // Rating and count now derive from the rows just written.
+    await sql`
+      UPDATE apis SET
+        rating  = (SELECT ROUND(AVG(rating)::numeric, 1) FROM reviews WHERE api_id = ${row.id}),
+        reviews = (SELECT COUNT(*) FROM reviews WHERE api_id = ${row.id})
+      WHERE id = ${row.id}
+    `;
+  }
+
   const adminEmail = (process.env.ADMIN_EMAIL ?? "admin@zephiel.dev").toLowerCase();
   // No default: a fixed, documented password would be a published credential
   // on any public repository.
@@ -122,14 +197,11 @@ try {
       INSERT INTO users (email, name, password_hash, role)
       VALUES (${adminEmail}, 'Administrator', ${await hashPassword(adminPassword)}, 'admin')
     `;
-    console.log(`
-Created admin: ${adminEmail}`);
+    console.log(`\nCreated admin: ${adminEmail}`);
     console.log(`Password:      ${adminPassword}`);
     if (generated) {
-      console.log("
-This password was generated and is shown only once — save it now.");
-      console.log("Change it at /admin/settings, or with `npm run admin:password`.
-");
+      console.log("\nThis password was generated and is shown only once — save it now.");
+      console.log("Change it at /admin/settings, or with `npm run admin:password`.\n");
     }
   }
 

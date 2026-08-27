@@ -8,6 +8,7 @@ import ApiTabs from "@/components/ApiTabs";
 import ApiCard, { Stars } from "@/components/ApiCard";
 import ApiIcon from "@/components/ApiIcon";
 import { compact } from "@/lib/utils";
+import { getReviews, getReviewSummary, canReview, getOwnReview } from "@/server/reviews";
 
 export const revalidate = 60;
 
@@ -47,11 +48,17 @@ export default async function ApiDetailPage({
   const api = await getApiBySlug(slug);
   if (!api) notFound();
 
-  const [cat, siblings, user] = await Promise.all([
+  const [cat, siblings, user, reviews, summary] = await Promise.all([
     getCategoryBySlug(api.category),
     getApisByCategory(api.category),
     getCurrentUser(),
+    getReviews(api.id!),
+    getReviewSummary(api.id!),
   ]);
+
+  const [mayReview, ownReview] = user
+    ? await Promise.all([canReview(user.id, api.id!), getOwnReview(user.id, api.id!)])
+    : [false, null];
 
   // Which plan, if any, this visitor is already on.
   let currentPlan: string | null = null;
@@ -108,8 +115,10 @@ export default async function ApiDetailPage({
           <p className="mt-2 text-[15px] leading-7 text-muted">{api.tagline}</p>
 
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
-            <Stars rating={api.rating} />
-            <span>{api.reviews.toLocaleString()} reviews</span>
+            <Stars rating={summary.count > 0 ? summary.average : api.rating} />
+            <span>
+              {summary.count.toLocaleString()} review{summary.count === 1 ? "" : "s"}
+            </span>
             <span className="hidden text-line sm:inline">|</span>
             <span>by {api.provider}</span>
             <span className="hidden text-line sm:inline">|</span>
@@ -173,7 +182,14 @@ export default async function ApiDetailPage({
       </header>
 
       <div className="mt-10 scroll-mt-24" id="plans">
-        <ApiTabs api={api} currentPlan={currentPlan} />
+        <ApiTabs
+          api={api}
+          currentPlan={currentPlan}
+          reviews={reviews}
+          summary={summary}
+          canReview={mayReview}
+          ownReview={ownReview}
+        />
       </div>
 
       {related.length > 0 && (
