@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, hashPassword, verifyPassword, createSession } from "@/lib/auth";
+import { sql } from "@/lib/db";
 import { clearSetting, setSetting } from "@/lib/settings";
 import { getPaystackConfig, testSecretKey } from "@/lib/paystack";
 import type { FormState } from "./admin";
@@ -94,4 +95,52 @@ export async function savePlatformSettings(
 
   revalidatePath("/admin/settings");
   return { ok: "Platform settings saved." };
+}
+
+const passwordSchema = z
+  .object({
+    current: z.string().min(1, "Enter your current password."),
+    next: z.string().min(12, "Use at least 12 characters."),
+    confirm: z.string(),
+  })
+  .refine((v) => v.next === v.confirm, { message: "The new passwords do not match." });
+
+/**
+ * Change the signed-in administrator's own password.
+ *
+ * Requires the current password so a borrowed session cannot lock the real
+ * owner out, and drops every other session for the account afterwards.
+ */
+export async function changePassword(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+
+  const parsed = passwordSchema.safeParse({
+    current: String(formData.get("current") ?? ""),
+    next: String(formData.get("next") ?? ""),
+    confirm: String(formData.get("confirm") ?? ""),
+  });
+
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
+
+  const [row] = await sql<{ password_hash: string }[]>`
+    SELECT password_hash FROM users WHERE id = ${admin.id} LIMIT 1
+  `;
+  if (!row || !(await verifyPassword(parsed.data.current, row.password_hash))) {
+    return { error: "Your current password is incorrect." };
+  }
+
+  if (parsed.data.next === parsed.data.current) {
+    return { error: "The new password must be different." };
+  }
+
+  await sql`
+    UPDATE users SET password_hash = ${await hashPassword(parsed.data.next)}
+    WHERE id = ${admin.id}
+  `;
+  // Invalidate every existing session (anyone signed in with the old password
+  // is now out), then issue a fresh one so this browser stays signed in.
+  await sql`DELETE FROM sessions WHERE user_id = ${admin.id}`;
+  await createSession(admin.id);
+
+  return { ok: "Password changed. Other sessions have been signed out — sign in again there." };
 }

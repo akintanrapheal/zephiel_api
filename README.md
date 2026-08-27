@@ -18,9 +18,13 @@ npm run db:seed                   # load 26 APIs, 9 categories, and an admin use
 npm run dev                       # http://localhost:3000
 ```
 
-The seed prints the admin credentials it creates — by default `admin@zephiel.dev` / `zephiel-admin`
-(override with `ADMIN_EMAIL` / `ADMIN_PASSWORD` before seeding). **Change the password after the first
-sign-in on any real deployment.**
+The seed creates the first administrator and prints the credentials **once**. If `ADMIN_PASSWORD` is
+not set it generates a random one — save it from the output, because it is not shown again. Set
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` before seeding to choose your own.
+
+> **Never deploy with a password that appears in a repository, issue, or chat log.** Change it at
+> `/admin/settings`, or run `npm run admin:password`, which prompts without echoing and signs out
+> every existing session.
 
 ### Getting a database
 

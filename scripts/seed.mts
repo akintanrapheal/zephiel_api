@@ -105,7 +105,10 @@ try {
   }
 
   const adminEmail = (process.env.ADMIN_EMAIL ?? "admin@zephiel.dev").toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "zephiel-admin";
+  // No default: a fixed, documented password would be a published credential
+  // on any public repository.
+  const generated = !process.env.ADMIN_PASSWORD;
+  const adminPassword = process.env.ADMIN_PASSWORD ?? randomBytes(12).toString("base64url");
 
   const [existing] = await sql<{ id: string }[]>`
     SELECT id FROM users WHERE email = ${adminEmail} LIMIT 1
@@ -119,7 +122,15 @@ try {
       INSERT INTO users (email, name, password_hash, role)
       VALUES (${adminEmail}, 'Administrator', ${await hashPassword(adminPassword)}, 'admin')
     `;
-    console.log(`Created admin: ${adminEmail} / ${adminPassword}`);
+    console.log(`
+Created admin: ${adminEmail}`);
+    console.log(`Password:      ${adminPassword}`);
+    if (generated) {
+      console.log("
+This password was generated and is shown only once — save it now.");
+      console.log("Change it at /admin/settings, or with `npm run admin:password`.
+");
+    }
   }
 
   console.log("Seed complete.");

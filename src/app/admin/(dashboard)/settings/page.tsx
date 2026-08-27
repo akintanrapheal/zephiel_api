@@ -5,12 +5,15 @@ import PageHeader, { Card } from "@/components/admin/PageHeader";
 import PaystackSettingsForm from "@/components/admin/PaystackSettingsForm";
 import PlatformSettingsForm from "@/components/admin/PlatformSettingsForm";
 import CopyField from "@/components/admin/CopyField";
+import PasswordForm from "@/components/admin/PasswordForm";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
 export default async function AdminSettingsPage() {
-  const [config, secret, settings] = await Promise.all([
+  const [admin, config, secret, settings] = await Promise.all([
+    requireAdmin(),
     getPaystackConfig(),
     getSecretStatus("paystack_secret_key"),
     getSettings(),
@@ -91,6 +94,10 @@ export default async function AdminSettingsPage() {
             )}
           </p>
         </div>
+      </Card>
+
+      <Card title="Your password" padded>
+        <PasswordForm email={admin.email} />
       </Card>
 
       <Card title="Platform" padded>

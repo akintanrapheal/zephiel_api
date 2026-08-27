@@ -10,7 +10,8 @@
     "db:migrate": "tsx scripts/migrate.mts",
     "db:seed": "tsx scripts/seed.mts",
     "db:reset": "tsx scripts/reset.mts",
-    "test:e2e": "tsx scripts/e2e.mts"
+    "test:e2e": "tsx scripts/e2e.mts",
+    "admin:password": "tsx scripts/set-password.mts"
   },
   "dependencies": {
     "next": "^16.3.3",
