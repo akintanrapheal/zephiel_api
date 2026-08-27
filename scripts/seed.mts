@@ -153,6 +153,67 @@ try {
     });
   }
 
+  // Multistore is the flagship listing, so it carries a full review history
+  // rather than the handful every listing gets.
+  const deepNames = [
+    ["Chidi Nwosu", "Head of Engineering"], ["Sarah Whitfield", "Founder"],
+    ["Marcus Adeyemi", "Lead Developer"], ["Elena Rossi", "Product Manager"],
+    ["Kwame Boateng", "Integrations Lead"], ["Yuki Tanaka", "Backend Engineer"],
+    ["Fatima Bello", "Operations Director"], ["James O'Connor", "CTO"],
+    ["Ngozi Eze", "Ecommerce Manager"], ["Ravi Menon", "Solutions Architect"],
+    ["Hannah Lindqvist", "Platform Lead"], ["Tunde Alabi", "Technical Director"],
+    ["Grace Mwangi", "Head of Retail Tech"], ["Pieter de Vries", "Staff Engineer"],
+    ["Aisha Suleiman", "Digital Lead"], ["Carlos Mendez", "Engineering Manager"],
+    ["Blessing Okafor", "Systems Analyst"], ["Sofia Almeida", "Developer"],
+    ["Ibrahim Diallo", "Head of Product"], ["Mei Chen", "Integration Engineer"],
+    ["Olamide Fashola", "Retail Systems Lead"], ["Anna Kowalski", "Senior Developer"],
+    ["Emeka Obi", "Technical Lead"], ["Laura Bennett", "Director of Engineering"],
+  ];
+
+  const deepBodies = [
+    "We run seven storefronts across three platforms. Before this, inventory drifted between them constantly and someone reconciled it by hand every Monday. That job no longer exists.",
+    "The per-store key model is what sold it. When a contractor left we rotated one key instead of auditing every integration we had ever built.",
+    "Pushing a price change to every channel used to be four separate admin logins. It is one call now, and it lands in seconds.",
+    "Overselling was our biggest support cost. Continuous reconciliation cut it to almost nothing within a fortnight of switching over.",
+    "The unified order queue is the part I did not expect to care about. Our fulfilment team works one list instead of tabbing between platforms.",
+    "Setup took an afternoon. The connectors handled the field mapping quirks between Shopify and WooCommerce that I had budgeted a week for.",
+    "Billing per store is honest and predictable. We add a market, we pay for a market, and the invoice matches what I expected.",
+    "Migrating a store between platforms would have been a month of work. We ran both in parallel through the same API and cut over quietly.",
+    "Documentation is accurate, which sounds like a low bar until you have integrated something where it is not.",
+    "Latency has been steady even during our Black Friday peak, when both upstream platforms were visibly struggling.",
+    "The sandbox status on a store is genuinely useful — we stage catalogue changes without touching live inventory.",
+    "Support answered a webhook ordering question in under two hours with an actual explanation rather than a link to the FAQ.",
+    "We had a stock sync bug on our side and the per-store call charts made it obvious within minutes which storefront was misbehaving.",
+    "Nine stores, one integration, one invoice. The finance team stopped asking me what half the line items were.",
+    "Would like richer conflict resolution when two platforms disagree about a product, but the field mapping covers most of it.",
+    "The API returns the same shapes regardless of which platform is behind it. That consistency is the whole value.",
+    "Disconnecting a seasonal store and reconnecting it three months later kept its history intact. Small thing, saved a reconciliation.",
+    "Our Etsy and Amazon listings finally match the main catalogue without a nightly script nobody wanted to maintain.",
+    "Rate limits are generous enough that our hourly full sync never comes close to them.",
+    "It does one thing and does it properly. I have no complaints after eight months in production.",
+    "Onboarding a new franchise store is now a form rather than a project.",
+    "The order webhooks are reliable enough that we retired our polling job entirely.",
+    "Catalogue push handled forty thousand SKUs without complaint. I expected to have to batch it myself.",
+    "Honestly the best integration decision we made last year.",
+  ];
+
+  const [msRow] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
+  if (msRow) {
+    console.log("Seeding multistore reviews...");
+    await sql`DELETE FROM reviews WHERE api_id = ${msRow.id} AND user_id IS NULL`;
+
+    for (const [i, [name, role]] of deepNames.entries()) {
+      // Weighted to land on a high average without being uniformly perfect.
+      const rating = i % 9 === 0 ? 4 : i % 17 === 0 ? 3 : 5;
+      await sql`
+        INSERT INTO reviews (api_id, user_id, rating, author_name, role, title, body, created_at)
+        VALUES (${msRow.id}, NULL, ${rating}, ${name}, ${role}, '',
+                ${deepBodies[i % deepBodies.length]},
+                now() - (${i * 4}::text || ' days')::interval)
+      `;
+    }
+  }
+
   console.log("Seeding reviews...");
   for (const a of apis) {
     const [row] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = ${a.slug} LIMIT 1`;

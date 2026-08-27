@@ -14,7 +14,7 @@ Built with Next.js 16 (App Router), TypeScript, Tailwind CSS, and `postgres`.
 npm install
 cp .env.example .env.local        # then fill in DATABASE_URL
 npm run db:migrate                # create the schema
-npm run db:seed                   # load 26 APIs, 9 categories, and an admin user
+npm run db:seed                   # load 38 APIs, 9 categories, reviews, posts, and an admin user
 npm run dev                       # http://localhost:3000
 ```
 
@@ -67,7 +67,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 137 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 143 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies
@@ -103,7 +103,7 @@ subscriptions and payments. Edits appear on the public marketplace immediately v
 
 ### What is *not* wired up
 
-- **The 26 seeded APIs are fictional.** There are no upstream providers, so the gateway returns each
+- **The 38 seeded APIs are fictional.** There are no upstream providers, so the gateway returns each
   listing's stored sample response. Everything around it — auth, quota, metering, headers — is real.
 - **Paid checkout needs your Paystack keys.** Without `PAYSTACK_SECRET_KEY` the subscribe button on a
   paid plan shows an explanatory message and free plans still work. The e2e suite covers signature

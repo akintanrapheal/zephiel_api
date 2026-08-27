@@ -14,6 +14,7 @@ export async function getAdminNavCounts(): Promise<Record<string, number>> {
   const tables: [string, string][] = [
     ["/admin/apis", "apis"],
     ["/admin/categories", "categories"],
+    ["/admin/reviews", "reviews"],
     ["/admin/posts", "posts"],
     ["/admin/subscriptions", "subscriptions"],
     ["/admin/payments", "payments"],

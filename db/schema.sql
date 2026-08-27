@@ -311,3 +311,9 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   unsubscribed_at timestamptz,
   created_at     timestamptz NOT NULL DEFAULT now()
 );
+
+-- Reviews may be written by a customer (user_id set) or entered by an
+-- administrator on someone's behalf (author_name set). NULLs do not conflict
+-- in the unique index, so admin-entered rows are not limited to one per API.
+ALTER TABLE reviews ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS author_name text NOT NULL DEFAULT '';

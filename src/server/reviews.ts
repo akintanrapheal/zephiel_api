@@ -18,12 +18,13 @@ export type ReviewSummary = {
   distribution: { stars: number; count: number; percent: number }[];
 };
 
-export async function getReviews(apiId: string, limit = 6): Promise<Review[]> {
+export async function getReviews(apiId: string, limit = 8): Promise<Review[]> {
   return sql<Review[]>`
     SELECT r.id, r.rating, r.title, r.body, r.role,
-           u.name AS "authorName", r.created_at AS "createdAt"
+           COALESCE(NULLIF(r.author_name, ''), u.name, 'Customer') AS "authorName",
+           r.created_at AS "createdAt"
     FROM reviews r
-    JOIN users u ON u.id = r.user_id
+    LEFT JOIN users u ON u.id = r.user_id
     WHERE r.api_id = ${apiId}
     ORDER BY r.created_at DESC
     LIMIT ${limit}

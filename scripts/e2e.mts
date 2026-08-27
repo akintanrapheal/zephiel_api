@@ -74,7 +74,9 @@ async function submit(
   const fields = await actionFields(path, marker, cookie);
   const body = new FormData();
   for (const [k, v] of Object.entries(fields)) body.append(k, v);
-  for (const [k, v] of Object.entries(values)) body.append(k, v);
+  // set(), not append(): a hidden default already in the form would otherwise
+  // win, because formData.get() returns the first entry.
+  for (const [k, v] of Object.entries(values)) body.set(k, v);
 
   return fetch(`${BASE}${path}`, {
     method: "POST",
@@ -174,6 +176,7 @@ try {
     "/admin/payments",
     "/admin/settings",
     "/admin/notifications",
+    "/admin/reviews",
     "/admin/posts",
     "/admin/posts/new",
   ]) {
@@ -571,6 +574,77 @@ try {
     Number(reviewApi.rating) === Number(computed.avg),
     `stored ${reviewApi.rating} vs computed ${computed.avg}`
   );
+
+  // Every published listing carries reviews, and Multistore carries many.
+  const [coverage] = await sql<{ total: string; withReviews: string }[]>`
+    SELECT COUNT(*)::text AS total,
+           COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM reviews r WHERE r.api_id = a.id))::text AS "withReviews"
+    FROM apis a WHERE a.published AND a.slug NOT LIKE 'e2e-api-%'
+  `;
+  check(
+    "every published API has reviews",
+    coverage.total === coverage.withReviews,
+    `${coverage.withReviews}/${coverage.total}`
+  );
+
+  const [msReviews] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM reviews r JOIN apis a ON a.id = r.api_id
+    WHERE a.slug = 'multistore'
+  `;
+  check("multistore has a deep review set", Number(msReviews.c) >= 20, `${msReviews.c} reviews`);
+
+  // Admin can add, edit, and delete a review.
+  const [targetApi] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'qr-codes' LIMIT 1`;
+  if (targetApi) {
+    const before = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM reviews WHERE api_id = ${targetApi.id}
+    `;
+    await submit("/admin/reviews", {
+      apiId: targetApi.id,
+      rating: "4",
+      authorName: "E2E Reviewer",
+      role: "Tester",
+      title: "Added from the console",
+      body: "This review was created through the admin interface during the end-to-end run.",
+    }, adminCookie, 'name="authorName"');
+
+    const [added] = await sql<{ id: string; rating: number }[]>`
+      SELECT id, rating FROM reviews WHERE api_id = ${targetApi.id} AND author_name = 'E2E Reviewer' LIMIT 1
+    `;
+    check("admin can add a review", Boolean(added), `was ${before[0].c}`);
+
+    if (added) {
+      const [rated] = await sql<{ rating: string; computed: string }[]>`
+        SELECT a.rating::text, ROUND(AVG(v.rating)::numeric,1)::text AS computed
+        FROM apis a JOIN reviews v ON v.api_id = a.id
+        WHERE a.id = ${targetApi.id} GROUP BY a.rating
+      `;
+      check("adding a review recomputes the listing rating", rated.rating === rated.computed,
+        `${rated.rating} vs ${rated.computed}`);
+
+      await submit("/admin/reviews", {
+        id: added.id,
+        apiId: targetApi.id,
+        rating: "2",
+        authorName: "E2E Reviewer",
+        role: "Tester",
+        title: "Edited",
+        body: "This review was edited through the admin interface during the end-to-end run.",
+      }, adminCookie, `value="${added.id}"`);
+
+      const [edited] = await sql<{ rating: number; title: string }[]>`
+        SELECT rating, title FROM reviews WHERE id = ${added.id}
+      `;
+      check("admin can edit a review", edited?.rating === 2 && edited.title === "Edited",
+        `rating ${edited?.rating}`);
+
+      await sql`DELETE FROM reviews WHERE id = ${added.id}`;
+      await sql`
+        UPDATE apis a SET rating = COALESCE((SELECT ROUND(AVG(rating)::numeric,1) FROM reviews r WHERE r.api_id = a.id), 5.0),
+          reviews = (SELECT COUNT(*) FROM reviews r WHERE r.api_id = a.id) WHERE a.id = ${targetApi.id}
+      `;
+    }
+  }
 
   // A non-subscriber cannot review.
   const [otherApi] = await sql<{ id: string; slug: string }[]>`

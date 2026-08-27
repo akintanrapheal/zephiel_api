@@ -29,10 +29,12 @@ export const EXPECTED_TABLES = [
 export const EXPECTED_COLUMNS: { table: string; column: string }[] = [
   { table: "apis", column: "icon" },
   { table: "stores", column: "domain" },
+  { table: "reviews", column: "author_name" },
   { table: "api_keys", column: "store_id" },
   { table: "usage_events", column: "store_id" },
   { table: "subscriptions", column: "demo_traffic" },
   { table: "stores", column: "domain" },
+  { table: "reviews", column: "author_name" },
 ];
 
 export type SchemaStatus = {

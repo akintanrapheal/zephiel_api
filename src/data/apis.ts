@@ -1,4 +1,5 @@
 import type { Api, Endpoint, Plan } from "@/lib/types";
+import { moreApis } from "./more-apis";
 
 export type { Api, Endpoint, Plan };
 
@@ -46,7 +47,7 @@ const tiers = (base: number, unit = "requests"): Plan[] => [
   },
 ];
 
-export const apis: Api[] = [
+const coreApis: Api[] = [
   {
     slug: "exchange-rates-data",
     name: "Exchange Rates Data",
@@ -1016,3 +1017,5 @@ export const apis: Api[] = [
     plans: tiers(23),
   },
 ];
+
+export const apis: Api[] = [...coreApis, ...moreApis];
