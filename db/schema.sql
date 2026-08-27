@@ -223,3 +223,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS notifications_once_idx
   ON notifications(subscription_id, kind, period_end);
 
 CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, created_at DESC);
+
+-- --------------------------------------------------------- usage rollups --
+
+-- Historical call volume, one row per user/api/store/day.
+--
+-- usage_events is the hot table — every individual call, kept for the recent
+-- window that intraday charts need. Anything older is summarised here, because
+-- storing millions of rows to draw a daily line is wasteful and slow.
+CREATE TABLE IF NOT EXISTS usage_daily (
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  api_id     uuid NOT NULL REFERENCES apis(id) ON DELETE CASCADE,
+  store_id   uuid REFERENCES stores(id) ON DELETE CASCADE,
+  day        date NOT NULL,
+  calls      bigint NOT NULL DEFAULT 0,
+  errors     bigint NOT NULL DEFAULT 0,
+  avg_latency integer NOT NULL DEFAULT 0
+);
+
+-- store_id is nullable, so a composite primary key will not do: NULLs would
+-- never conflict. COALESCE to a sentinel gives one row per store-or-none.
+CREATE UNIQUE INDEX IF NOT EXISTS usage_daily_key_idx
+  ON usage_daily(user_id, api_id, day, COALESCE(store_id, '00000000-0000-0000-0000-000000000000'::uuid));
+
+CREATE INDEX IF NOT EXISTS usage_daily_user_day_idx ON usage_daily(user_id, day);

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import PageHeader, { Card } from "@/components/admin/PageHeader";
-import { JoinDateForm, SubscriptionForm } from "@/components/admin/CustomerForms";
+import { JoinDateForm, SubscriptionForm, TrafficForm } from "@/components/admin/CustomerForms";
 import { deleteSubscription } from "@/server/actions/customers";
 import { compact } from "@/lib/utils";
 
@@ -97,6 +97,18 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 .filter((p) => p.api_id === s.api_id)
                 .map((p) => ({ id: p.id, name: p.name, price: Number(p.price), unit: p.unit }))}
             />
+
+            <div className="mt-5 border-t border-line pt-5">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Demonstration traffic
+              </h3>
+              <div className="mt-3">
+                <TrafficForm
+                  subscriptionId={s.id}
+                  defaultFrom={iso(user.created_at) || "2026-06-02"}
+                />
+              </div>
+            </div>
 
             <form action={deleteSubscription} className="mt-4 border-t border-line pt-4">
               <input type="hidden" name="id" value={s.id} />

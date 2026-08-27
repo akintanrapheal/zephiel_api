@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { generateTraffic, clearTraffic } from "@/server/traffic";
 import type { FormState } from "./admin";
 
 const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
@@ -103,4 +104,74 @@ export async function deleteSubscription(formData: FormData) {
 
   revalidatePath(`/admin/users/${row?.user_id ?? ""}`);
   revalidatePath("/admin/subscriptions");
+}
+
+const trafficSchema = z.object({
+  from: z.string().regex(dateOnly, "Use a YYYY-MM-DD start date."),
+  total: z.coerce.number().int().min(1).max(1_000_000_000),
+});
+
+/**
+ * Populate a demonstration account with a plausible traffic history.
+ *
+ * Writes daily rollups across the whole range plus real events for the last
+ * few hours, then squares the subscription's `used` counter with the total so
+ * the dashboard and the quota bar agree.
+ */
+export async function generateDemoTraffic(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  if (!subscriptionId) return { error: "Missing subscription." };
+
+  const parsed = trafficSchema.safeParse({
+    from: String(formData.get("from") ?? ""),
+    total: formData.get("total") || 0,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const from = new Date(`${parsed.data.from}T00:00:00Z`);
+  if (from > new Date()) return { error: "The start date cannot be in the future." };
+
+  const [sub] = await sql<{ user_id: string; api_id: string; quota: number }[]>`
+    SELECT user_id, api_id, quota FROM subscriptions WHERE id = ${subscriptionId} LIMIT 1
+  `;
+  if (!sub) return { error: "Subscription not found." };
+
+  const result = await generateTraffic({
+    userId: sub.user_id,
+    apiId: sub.api_id,
+    from,
+    totalCalls: parsed.data.total,
+  });
+
+  // Keep the quota bar consistent with the history just written.
+  await sql`
+    UPDATE subscriptions SET used = LEAST(${parsed.data.total}, quota), updated_at = now()
+    WHERE id = ${subscriptionId}
+  `;
+
+  revalidatePath(`/admin/users/${sub.user_id}`);
+  revalidatePath("/dashboard");
+
+  return {
+    ok: `Generated ${result.totalCalls.toLocaleString()} calls across ${result.days} days (${result.rollupRows} daily rows, ${result.liveEvents} live events).`,
+  };
+}
+
+export async function clearDemoTraffic(formData: FormData) {
+  await requireAdmin();
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  if (!subscriptionId) return;
+
+  const [sub] = await sql<{ user_id: string; api_id: string }[]>`
+    SELECT user_id, api_id FROM subscriptions WHERE id = ${subscriptionId} LIMIT 1
+  `;
+  if (!sub) return;
+
+  await clearTraffic(sub.user_id, sub.api_id);
+  await sql`UPDATE subscriptions SET used = 0 WHERE id = ${subscriptionId}`;
+
+  revalidatePath(`/admin/users/${sub.user_id}`);
+  revalidatePath("/dashboard");
 }

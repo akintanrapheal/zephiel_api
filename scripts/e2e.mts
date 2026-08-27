@@ -347,6 +347,52 @@ try {
   `;
   check("the call is attributed to that store", Number(attributed.c) === 1, `${attributed.c} events`);
 
+  // ------------------------------------------------------ demo traffic ----
+  console.log("\nTraffic history");
+
+  const [msSub] = await sql<{ id: string }[]>`
+    SELECT s.id FROM subscriptions s JOIN apis a ON a.id = s.api_id
+    WHERE s.user_id = ${user.id} AND a.slug = 'multistore' LIMIT 1
+  `;
+
+  const genRes = await submit("/admin/users/" + user.id, {
+    subscriptionId: msSub.id,
+    from: "2026-06-02",
+    total: "7000000",
+  }, adminCookie, 'name="subscriptionId"');
+  check("admin can generate traffic history", genRes.status === 200 || genRes.status === 303, `status ${genRes.status}`);
+
+  const [rollupTotal] = await sql<{ c: string }[]>`
+    SELECT COALESCE(SUM(calls), 0)::text AS c FROM usage_daily WHERE user_id = ${user.id}
+  `;
+  check(
+    "generated total matches exactly",
+    Number(rollupTotal.c) === 7_000_000,
+    `${Number(rollupTotal.c).toLocaleString()}`
+  );
+
+  const shape = await sql<{ c: string }[]>`
+    SELECT SUM(calls)::text AS c FROM usage_daily WHERE user_id = ${user.id}
+    GROUP BY day ORDER BY day
+  `;
+  const firstWeek = shape.slice(0, 7).reduce((a, r) => a + Number(r.c), 0);
+  const lastWeek = shape.slice(-7).reduce((a, r) => a + Number(r.c), 0);
+  check("volume grows from start to today", lastWeek > firstWeek * 3, `${firstWeek} -> ${lastWeek}`);
+  check("history spans the full range", shape.length >= 80, `${shape.length} days`);
+
+  const [liveEvents] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM usage_events
+    WHERE user_id = ${user.id} AND created_at >= now() - interval '8 hours'
+  `;
+  check("intraday events exist for the five-minute chart", Number(liveEvents.c) > 50, `${liveEvents.c} events`);
+
+  const usageHtml = await (await fetch(`${BASE}/dashboard/usage`, { headers: { cookie } })).text();
+  check("usage page reflects the generated history", /[\d,]{7,}/.test(usageHtml), "no large totals rendered");
+
+  // Generating 7M calls against a 1,000-call free plan correctly exhausts the
+  // quota. Reset it so the gateway checks below start with headroom.
+  await sql`UPDATE subscriptions SET used = 0 WHERE user_id = ${user.id}`;
+
   // ---------------------------------------------------------------- icons --
   const [iconRow] = await sql<{ c: string }[]>`
     SELECT COUNT(*)::text AS c FROM apis WHERE icon <> ''

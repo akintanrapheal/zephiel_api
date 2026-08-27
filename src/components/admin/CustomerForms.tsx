@@ -1,7 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { setJoinDate, updateSubscription } from "@/server/actions/customers";
+import {
+  setJoinDate,
+  updateSubscription,
+  generateDemoTraffic,
+  clearDemoTraffic,
+} from "@/server/actions/customers";
 import type { FormState } from "@/server/actions/admin";
 import { Field, Message, Select, Submit } from "./Form";
 
@@ -80,5 +85,49 @@ export function SubscriptionForm({
         <Message state={state} />
       </div>
     </form>
+  );
+}
+
+export function TrafficForm({
+  subscriptionId,
+  defaultFrom,
+}: {
+  subscriptionId: string;
+  defaultFrom: string;
+}) {
+  const [state, action] = useActionState<FormState, FormData>(generateDemoTraffic, null);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs leading-6 text-muted">
+        Writes a growth curve of daily call volume from the start date to today, plus real events for
+        the last few hours so the five-minute chart has shape. Replaces any history already generated
+        for this API.
+      </p>
+
+      <form action={action} className="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="subscriptionId" value={subscriptionId} />
+        <Field label="From" name="from" type="date" defaultValue={defaultFrom} className="w-44" />
+        <Field
+          label="Total calls"
+          name="total"
+          type="number"
+          min="1"
+          defaultValue={7000000}
+          className="w-40"
+        />
+        <Submit>Generate history</Submit>
+      </form>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <form action={clearDemoTraffic}>
+          <input type="hidden" name="subscriptionId" value={subscriptionId} />
+          <button className="text-xs font-medium text-rose-600 hover:underline">
+            Clear generated history
+          </button>
+        </form>
+        <Message state={state} />
+      </div>
+    </div>
   );
 }
