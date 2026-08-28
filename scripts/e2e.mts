@@ -232,6 +232,12 @@ try {
     await fetch(`${BASE}/admin/settings`, { headers: { cookie: adminCookie } })
   ).text();
   check("settings page reports schema status", schemaHtml.includes("Database schema"));
+  check("settings offers a catalogue reseed", schemaHtml.includes("Reseed catalogue"));
+  check(
+    "reseed states what it leaves alone",
+    schemaHtml.includes("customer-written reviews are left"),
+    "no scope disclosure"
+  );
   check("schema reports up to date", schemaHtml.includes("Up to date"), "drift reported");
 
   const settingsHtml = await (

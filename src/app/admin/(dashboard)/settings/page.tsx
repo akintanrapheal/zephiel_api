@@ -11,6 +11,8 @@ import { getEmailConfig } from "@/lib/email";
 import { REMINDER_DAYS } from "@/server/notifications";
 import { getSchemaStatus } from "@/server/schema-status";
 import SchemaCard from "@/components/admin/SchemaCard";
+import ContentCard from "@/components/admin/ContentCard";
+import { sql } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +28,13 @@ export default async function AdminSettingsPage() {
     getSchemaStatus(),
   ]);
 
+  const [content] = await sql<{ apis: string; reviews: string; posts: string }[]>`
+    SELECT
+      (SELECT COUNT(*) FROM apis)::text    AS apis,
+      (SELECT COUNT(*) FROM reviews)::text AS reviews,
+      (SELECT COUNT(*) FROM posts)::text   AS posts
+  `.catch(() => [{ apis: "0", reviews: "0", posts: "0" }]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -38,6 +47,14 @@ export default async function AdminSettingsPage() {
           missingTables={schema.missingTables}
           missingColumns={schema.missingColumns}
           upToDate={schema.upToDate}
+        />
+      </Card>
+
+      <Card title="Catalogue content" padded>
+        <ContentCard
+          apis={Number(content.apis)}
+          reviews={Number(content.reviews)}
+          posts={Number(content.posts)}
         />
       </Card>
 

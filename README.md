@@ -39,7 +39,9 @@ not set it generates a random one — save it from the output, because it is not
   ```
 
 After a deploy that changes `db/schema.sql`, apply it from **Admin → Settings → Database schema**, which
-reports what is missing and applies it in one click. `npm run db:migrate` does the same from a terminal.
+reports what is missing and applies it in one click. New catalogue content ships the same way:
+**Settings → Catalogue content → Reseed catalogue**. `npm run db:migrate` and `npm run db:seed` do the
+same from a terminal — both entry points share one implementation.
 
 `npm run audit` crawls every route as visitor, customer, and administrator, follows every internal
 link, and runs data-integrity checks — useful after a deploy.
@@ -67,7 +69,7 @@ disturb users, subscriptions, or payments. `npm run db:reset` drops every table 
 
 ## What works end to end
 
-Verified by `npm run test:e2e` — 143 checks against a running server, driving real HTTP (server
+Verified by `npm run test:e2e` — 145 checks against a running server, driving real HTTP (server
 actions are submitted the way a browser without JavaScript would).
 
 **Accounts.** Sign up and sign in with scrypt-hashed passwords and DB-backed session cookies

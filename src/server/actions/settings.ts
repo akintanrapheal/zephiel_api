@@ -9,6 +9,7 @@ import { getPaystackConfig, testSecretKey } from "@/lib/paystack";
 import { getEmailConfig, sendEmail, emailShell } from "@/lib/email";
 import { sweepRenewalReminders } from "@/server/notifications";
 import { applySchema, getSchemaStatus } from "@/server/schema-status";
+import { seedCatalogue } from "@/server/catalog-seed";
 import type { FormState } from "./admin";
 
 const paystackSchema = z.object({
@@ -229,6 +230,34 @@ export async function runMigrations(_prev: FormState): Promise<FormState> {
       ? `Schema up to date. Added ${changes.join(", ")}.`
       : "Schema was already up to date — nothing changed.",
   };
+}
+
+/**
+ * Load the catalogue from the data files shipped with this build.
+ *
+ * Content is upserted by slug. Plans, endpoints, and the seeded reviews are
+ * owned by those files and replaced; accounts, subscriptions, payments, keys,
+ * usage, and customer-written reviews are never touched.
+ */
+export async function reseedCatalogue(_prev: FormState): Promise<FormState> {
+  await requireAdmin();
+
+  try {
+    const r = await seedCatalogue();
+    revalidatePath("/");
+    revalidatePath("/marketplace");
+    revalidatePath("/blog");
+    revalidatePath("/admin/apis");
+
+    return {
+      ok:
+        `Loaded ${r.apis} APIs, ${r.categories} categories, ${r.plans} plans, ` +
+        `${r.endpoints} endpoints, ${r.reviews} reviews, and ${r.posts} posts.`,
+    };
+  } catch (err) {
+    console.error("Reseed failed:", err);
+    return { error: `Could not load the catalogue: ${err instanceof Error ? err.message : "unknown error"}` };
+  }
 }
 
 const passwordSchema = z
