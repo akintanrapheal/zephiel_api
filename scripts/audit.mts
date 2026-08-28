@@ -41,7 +41,7 @@ const custEmail = `audit_${stamp}@zephiel.test`;
   await fetch(`${BASE}/signup`, { method:"POST", body:fd, redirect:"manual" });
 }
 const cust = await signIn("/signin", custEmail, "supersecret123");
-const admin = await signIn("/admin/login", process.env.ADMIN_EMAIL ?? "admin@zephiel.dev", process.env.ADMIN_PASSWORD ?? "zephiel-admin");
+const admin = await signIn("/admin/login", process.env.ADMIN_EMAIL ?? "admin@zephiel.com", process.env.ADMIN_PASSWORD ?? "zephiel-admin");
 console.log(`customer session: ${cust ? "ok" : "FAILED"} · admin session: ${admin ? "ok" : "FAILED"}\n`);
 
 // --- crawl -------------------------------------------------------------------
@@ -105,6 +105,17 @@ const checks: [string, string][] = [
    `SELECT COUNT(*)::text c FROM usage_events e JOIN api_keys k ON k.id=e.api_key_id WHERE k.revoked_at IS NOT NULL`],
   ["payments stuck pending over a day",
    `SELECT COUNT(*)::text c FROM payments WHERE status='pending' AND created_at < now() - interval '1 day'`],
+  ["review bodies shared by more than one API",
+   `SELECT COUNT(*)::text c FROM (SELECT body FROM reviews GROUP BY body HAVING COUNT(DISTINCT api_id) > 1) t`],
+  ["review bodies repeated within one API",
+   `SELECT COUNT(*)::text c FROM (SELECT api_id, body FROM reviews GROUP BY api_id, body HAVING COUNT(*) > 1) t`],
+  ["APIs whose rating or count disagrees with their reviews",
+   `SELECT COUNT(*)::text c FROM (SELECT a.id FROM apis a JOIN reviews r ON r.api_id=a.id
+     GROUP BY a.id, a.rating, a.reviews
+     HAVING a.rating <> ROUND(AVG(r.rating)::numeric,1) OR a.reviews <> COUNT(*)) t`],
+  ["reviews with no attributable author",
+   `SELECT COUNT(*)::text c FROM reviews r LEFT JOIN users u ON u.id=r.user_id
+     WHERE COALESCE(NULLIF(r.author_name,''), u.name) IS NULL`],
 ];
 for (const [label, q] of checks) {
   const [r] = await sql.unsafe(q);

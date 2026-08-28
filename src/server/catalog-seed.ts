@@ -1,10 +1,9 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
 import { sql } from "@/lib/db";
 import { apis } from "@/data/apis";
 import { categories } from "@/data/categories";
 import { posts as seedPosts } from "@/data/posts";
-import { reviewers, reviewBodies, multistoreReviews } from "@/data/reviews";
+import { reviewsForApi, multistoreReviews, legacyReviewerEmails } from "@/data/reviews";
 
 export type SeedResult = {
   categories: number;
@@ -20,19 +19,6 @@ function quotaFor(requests: string) {
   if (/unlimited/i.test(requests)) return 10_000_000;
   const nums = requests.replace(/,/g, "").match(/\d+/g);
   return nums ? Math.max(...nums.map(Number)) : 100;
-}
-
-/** Ratings for `n` reviewers whose mean is as close to `target` as possible. */
-function ratingsFor(target: number, n: number) {
-  const wanted = Math.round(target * n);
-  const base = Math.floor(wanted / n);
-  let remainder = wanted - base * n;
-
-  return Array.from({ length: n }, () => {
-    const bump = remainder > 0 ? 1 : 0;
-    if (remainder > 0) remainder -= 1;
-    return Math.min(5, Math.max(1, base + bump));
-  });
 }
 
 /**
@@ -124,27 +110,18 @@ export async function seedCatalogue(): Promise<SeedResult> {
 async function seedReviews() {
   let count = 0;
 
-  // Reviewer accounts exist only to attribute the standard review set.
-  const reviewerIds: string[] = [];
-  for (const r of reviewers) {
-    const [row] = await sql<{ id: string }[]>`
-      INSERT INTO users (email, name, password_hash, role)
-      VALUES (${r.email}, ${r.name}, ${`scrypt:${randomBytes(16).toString("hex")}:${randomBytes(64).toString("hex")}`}, 'customer')
-      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
-      RETURNING id
-    `;
-    reviewerIds.push(row.id);
-  }
+  // The reviews these accounts carried repeated the same five bodies on every
+  // listing. Removing the accounts removes those rows with them.
+  await sql`DELETE FROM users WHERE email = ANY(${legacyReviewerEmails}) AND role = 'customer'`;
 
   const [ms] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
   if (ms) {
     // Replace only the seeded set; anything a customer wrote is left alone.
     await sql`DELETE FROM reviews WHERE api_id = ${ms.id} AND user_id IS NULL`;
-
     for (const [i, r] of multistoreReviews.entries()) {
       await sql`
         INSERT INTO reviews (api_id, user_id, rating, author_name, role, title, body, created_at)
-        VALUES (${ms.id}, NULL, ${r.rating}, ${r.name}, ${r.role}, '', ${r.body},
+        VALUES (${ms.id}, NULL, ${r.rating}, ${r.name}, ${r.role}, ${r.title ?? ""}, ${r.body},
                 now() - (${i * 4}::text || ' days')::interval)
       `;
       count += 1;
@@ -154,29 +131,36 @@ async function seedReviews() {
   for (const a of apis) {
     const [row] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = ${a.slug} LIMIT 1`;
     if (!row) continue;
+    if (a.slug === "multistore") {
+      await refreshRating(row.id);
+      continue;
+    }
 
-    const ratings = ratingsFor(a.rating, reviewers.length);
-    for (const [i, reviewerId] of reviewerIds.entries()) {
+    await sql`DELETE FROM reviews WHERE api_id = ${row.id} AND user_id IS NULL`;
+
+    for (const [i, r] of reviewsForApi(a).entries()) {
       await sql`
-        INSERT INTO reviews (api_id, user_id, rating, title, body, role)
-        VALUES (${row.id}, ${reviewerId}, ${ratings[i]}, ${reviewBodies[i].title},
-                ${reviewBodies[i].body}, ${reviewers[i].role})
-        ON CONFLICT (api_id, user_id) DO UPDATE
-          SET rating = EXCLUDED.rating, title = EXCLUDED.title, body = EXCLUDED.body
+        INSERT INTO reviews (api_id, user_id, rating, author_name, role, title, body, created_at)
+        VALUES (${row.id}, NULL, ${r.rating}, ${r.name}, ${r.role}, ${r.title ?? ""}, ${r.body},
+                now() - (${i * 9 + 2}::text || ' days')::interval)
       `;
       count += 1;
     }
 
-    // Rating and count derive from the rows just written.
-    await sql`
-      UPDATE apis SET
-        rating  = COALESCE((SELECT ROUND(AVG(rating)::numeric, 1) FROM reviews WHERE api_id = ${row.id}), 5.0),
-        reviews = (SELECT COUNT(*) FROM reviews WHERE api_id = ${row.id})
-      WHERE id = ${row.id}
-    `;
+    await refreshRating(row.id);
   }
 
   return count;
+}
+
+/** Rating and count derive from the rows, so the two can never disagree. */
+async function refreshRating(apiId: string) {
+  await sql`
+    UPDATE apis SET
+      rating  = COALESCE((SELECT ROUND(AVG(rating)::numeric, 1) FROM reviews WHERE api_id = ${apiId}), 5.0),
+      reviews = (SELECT COUNT(*) FROM reviews WHERE api_id = ${apiId})
+    WHERE id = ${apiId}
+  `;
 }
 
 async function seedBlogPosts() {

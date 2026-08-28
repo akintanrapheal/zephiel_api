@@ -326,7 +326,7 @@ export const moreApis: Api[] = [
   "seed": 884213,
   "width": 1024,
   "height": 1024,
-  "url": "https://cdn.zephiel.dev/g/5ce02a.png",
+  "url": "https://cdn.zephiel.com/g/5ce02a.png",
   "safety": { "flagged": false }
 }`,
     plans: tiers(30, "images"),
@@ -362,9 +362,9 @@ export const moreApis: Api[] = [
     ],
     sampleResponse: `{
   "format": "qr",
-  "content": "https://zephiel.dev/p/8841",
+  "content": "https://zephiel.com/p/8841",
   "error_correction": "M",
-  "url": "https://cdn.zephiel.dev/q/8841.svg",
+  "url": "https://cdn.zephiel.com/q/8841.svg",
   "bytes": 1841
 }`,
     plans: tiers(9),
@@ -404,8 +404,8 @@ export const moreApis: Api[] = [
   "status": "completed",
   "duration": 184.6,
   "renditions": [
-    { "height": 1080, "bitrate": 5200, "url": "https://cdn.zephiel.dev/v/9a20cc/1080.m3u8" },
-    { "height": 720, "bitrate": 2800, "url": "https://cdn.zephiel.dev/v/9a20cc/720.m3u8" }
+    { "height": 1080, "bitrate": 5200, "url": "https://cdn.zephiel.com/v/9a20cc/1080.m3u8" },
+    { "height": 720, "bitrate": 2800, "url": "https://cdn.zephiel.com/v/9a20cc/720.m3u8" }
   ]
 }`,
     plans: tiers(34, "minutes"),

@@ -150,7 +150,7 @@ try {
 
   // --------------------------------------------------------- admin login --
   console.log("\nAdmin");
-  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@zephiel.dev";
+  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@zephiel.com";
 
   const loginPage = await fetch(`${BASE}/admin/login`, { redirect: "manual" });
   check("admin login page is publicly reachable", loginPage.status === 200, `status ${loginPage.status}`);

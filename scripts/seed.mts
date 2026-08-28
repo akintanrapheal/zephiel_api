@@ -13,7 +13,7 @@ import { loadEnv } from "./env.mts";
 import { apis } from "../src/data/apis.ts";
 import { categories } from "../src/data/categories.ts";
 import { posts } from "../src/data/posts.ts";
-import { reviewers, reviewBodies, multistoreReviews } from "../src/data/reviews.ts";
+import { reviewsForApi, multistoreReviews, legacyReviewerEmails } from "../src/data/reviews.ts";
 
 loadEnv();
 
@@ -41,17 +41,6 @@ function quotaFor(requests: string) {
   if (/unlimited/i.test(requests)) return 10_000_000;
   const nums = requests.replace(/,/g, "").match(/\d+/g);
   return nums ? Math.max(...nums.map(Number)) : 100;
-}
-
-function ratingsFor(target: number, n: number) {
-  const wanted = Math.round(target * n);
-  const base = Math.floor(wanted / n);
-  let remainder = wanted - base * n;
-  return Array.from({ length: n }, () => {
-    const bump = remainder > 0 ? 1 : 0;
-    if (remainder > 0) remainder -= 1;
-    return Math.min(5, Math.max(1, base + bump));
-  });
 }
 
 try {
@@ -115,27 +104,22 @@ try {
   }
 
   console.log("Seeding reviews...");
-  const reviewerIds: string[] = [];
-  for (const r of reviewers) {
-    const [row] = await sql<{ id: string }[]>`
-      INSERT INTO users (email, name, password_hash, role)
-      VALUES (${r.email}, ${r.name}, ${await hashPassword(randomBytes(24).toString("hex"))}, 'customer')
-      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
-      RETURNING id
-    `;
-    reviewerIds.push(row.id);
-  }
+  let reviewCount = 0;
+
+  // Retire the placeholder accounts an earlier seeder used to attribute a
+  // shared review set; the cascade on reviews.user_id takes their rows too.
+  await sql`DELETE FROM users WHERE email = ANY(${legacyReviewerEmails}) AND role = 'customer'`;
 
   const [ms] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
   if (ms) {
-    // Replace only the seeded set; anything a customer wrote is left alone.
     await sql`DELETE FROM reviews WHERE api_id = ${ms.id} AND user_id IS NULL`;
     for (const [i, r] of multistoreReviews.entries()) {
       await sql`
         INSERT INTO reviews (api_id, user_id, rating, author_name, role, title, body, created_at)
-        VALUES (${ms.id}, NULL, ${r.rating}, ${r.name}, ${r.role}, '', ${r.body},
+        VALUES (${ms.id}, NULL, ${r.rating}, ${r.name}, ${r.role}, ${r.title ?? ""}, ${r.body},
                 now() - (${i * 4}::text || ' days')::interval)
       `;
+      reviewCount += 1;
     }
   }
 
@@ -143,18 +127,18 @@ try {
     const [row] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = ${a.slug} LIMIT 1`;
     if (!row) continue;
 
-    const ratings = ratingsFor(a.rating, reviewers.length);
-    for (const [i, reviewerId] of reviewerIds.entries()) {
-      await sql`
-        INSERT INTO reviews (api_id, user_id, rating, title, body, role)
-        VALUES (${row.id}, ${reviewerId}, ${ratings[i]}, ${reviewBodies[i].title},
-                ${reviewBodies[i].body}, ${reviewers[i].role})
-        ON CONFLICT (api_id, user_id) DO UPDATE
-          SET rating = EXCLUDED.rating, title = EXCLUDED.title, body = EXCLUDED.body
-      `;
+    if (a.slug !== "multistore") {
+      await sql`DELETE FROM reviews WHERE api_id = ${row.id} AND user_id IS NULL`;
+      for (const [i, r] of reviewsForApi(a).entries()) {
+        await sql`
+          INSERT INTO reviews (api_id, user_id, rating, author_name, role, title, body, created_at)
+          VALUES (${row.id}, NULL, ${r.rating}, ${r.name}, ${r.role}, ${r.title ?? ""}, ${r.body},
+                  now() - (${i * 9 + 2}::text || ' days')::interval)
+        `;
+        reviewCount += 1;
+      }
     }
 
-    // Rating and count derive from the rows just written.
     await sql`
       UPDATE apis SET
         rating  = COALESCE((SELECT ROUND(AVG(rating)::numeric, 1) FROM reviews WHERE api_id = ${row.id}), 5.0),
@@ -162,6 +146,7 @@ try {
       WHERE id = ${row.id}
     `;
   }
+  console.log(`  ${reviewCount} reviews written`);
 
   console.log(`Seeding ${posts.length} posts...`);
   for (const [i, post] of posts.entries()) {
@@ -176,9 +161,19 @@ try {
   }
 
   // --- administrator bootstrap ---------------------------------------------
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "admin@zephiel.dev").toLowerCase();
+  const adminEmail = (process.env.ADMIN_EMAIL ?? "admin@zephiel.com").toLowerCase();
   const generated = !process.env.ADMIN_PASSWORD;
   const adminPassword = process.env.ADMIN_PASSWORD ?? randomBytes(12).toString("base64url");
+
+  // The project moved from zephiel.dev to zephiel.com; rename the existing
+  // administrator rather than leaving a second account behind.
+  if (adminEmail.endsWith("@zephiel.com")) {
+    const legacy = adminEmail.replace(/@zephiel\.com$/, "@zephiel.dev");
+    await sql`
+      UPDATE users SET email = ${adminEmail} WHERE email = ${legacy} AND role = 'admin'
+        AND NOT EXISTS (SELECT 1 FROM users u2 WHERE u2.email = ${adminEmail})
+    `;
+  }
 
   const [existing] = await sql<{ id: string }[]>`
     SELECT id FROM users WHERE email = ${adminEmail} LIMIT 1

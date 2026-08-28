@@ -18,7 +18,7 @@ export default function AdminLoginForm({ notice }: { notice?: string | null }) {
           required
           autoComplete="email"
           autoFocus
-          placeholder="admin@zephiel.dev"
+          placeholder="admin@zephiel.com"
           className="mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
         />
       </label>

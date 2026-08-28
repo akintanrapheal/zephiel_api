@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { GATEWAY_BASE } from "@/lib/app-url";
 
 type Lang = "curl" | "javascript" | "python" | "php";
 
@@ -16,7 +17,7 @@ export default function CodeSamples({ slug, endpoint }: { slug: string; endpoint
   const [lang, setLang] = useState<Lang>("curl");
   const [copied, setCopied] = useState(false);
 
-  const base = `https://api.zephiel.dev/v1/${slug}`;
+  const base = `${GATEWAY_BASE}/${slug}`;
   const url = `${base}${endpoint}`;
 
   const samples: Record<Lang, string> = {

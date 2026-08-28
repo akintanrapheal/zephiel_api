@@ -1,43 +1,105 @@
+import { voices, praise, measured, critical, type Voice } from "./review-voices";
+
+export type SeedReview = {
+  name: string;
+  role: string;
+  rating: number;
+  /** Optional headline; the hand-written Multistore set has none. */
+  title?: string;
+  body: string;
+};
+
+/** Stable hash so a listing's review set is the same on every reseed. */
+function hash(seed: string) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+type ApiInput = {
+  slug: string;
+  name: string;
+  useCases: string[];
+  tags: string[];
+  latency: number;
+  provider: string;
+  rating: number;
+};
+
 /**
- * Seed review content, shared by the CLI seeder and the admin console.
+ * Compose a review set for one listing.
  *
- * The standard set is attributed to five demonstration accounts so every
- * listing has something to show; Multistore additionally carries a deep set
- * entered without accounts, the way an administrator would record real
- * testimonials.
+ * The mix of ratings is chosen so the mean lands on the listing's own rating,
+ * and every body is written against that listing's use cases, tags, latency
+ * and provider — so no two APIs carry the same text.
  */
-export const reviewers = [
-  { email: "amara@zephiel.dev", name: "Amara Okonkwo", role: "Engineering Lead" },
-  { email: "daniel@zephiel.dev", name: "Daniel Kessler", role: "CTO" },
-  { email: "priya@zephiel.dev", name: "Priya Sundaram", role: "Staff Engineer" },
-  { email: "tomas@zephiel.dev", name: "Tomas Ferreira", role: "Platform Engineer" },
-  { email: "lin@zephiel.dev", name: "Lin Zhao", role: "Backend Developer" },
-];
+export function reviewsForApi(api: ApiInput, count = 12): SeedReview[] {
+  const seed = hash(api.slug);
+  const out: SeedReview[] = [];
 
-export const reviewBodies = [
-  {
-    title: "Consistent and quick to integrate",
-    body: "Response shapes match the docs exactly, and the free tier covered the whole prototype before anyone had to approve a purchase order.",
-  },
-  {
-    title: "Replaced three vendors",
-    body: "One key and one invoice instead of three of each. Support answered a rate-limit question the same afternoon.",
-  },
-  {
-    title: "Good, with room to grow",
-    body: "Does what it says and the samples run unmodified. I would like deeper filtering on the batch endpoint.",
-  },
-  {
-    title: "Latency has held up",
-    body: "Steady under a hundred milliseconds from eu-west for months, and the status page matched what we actually observed.",
-  },
-  {
-    title: "Solid, unglamorous, reliable",
-    body: "It has not surprised us once in six months, which is the highest compliment I can pay a dependency.",
-  },
-];
+  // How many of each rating, summing to `count` with the intended mean.
+  const target = api.rating;
+  const fives = Math.max(1, Math.round(count * Math.min(0.92, Math.max(0.25, (target - 3) / 2))));
+  const ones = target < 4 ? 1 : 0;
+  const threes = Math.max(0, Math.round(count * (target >= 4.7 ? 0.05 : 0.14)));
+  const fours = Math.max(0, count - fives - threes - ones);
 
-type SeedReview = { name: string; role: string; rating: number; body: string };
+  const ratings = [
+    ...Array(fives).fill(5),
+    ...Array(fours).fill(4),
+    ...Array(threes).fill(3),
+    ...Array(ones).fill(2),
+  ].slice(0, count);
+
+  // Frames are drawn per pool, not per overall index: striding by the global
+  // index into a five-frame pool lands on the same frame every time.
+  const used = new Map<string, number>();
+
+  for (const [i, rating] of ratings.entries()) {
+    const voice: Voice = voices[(seed + i * 7) % voices.length];
+    const useCase = api.useCases[(seed + i) % Math.max(1, api.useCases.length)] ?? "their integration";
+    const otherUseCase =
+      api.useCases[(seed + i + 1) % Math.max(1, api.useCases.length)] ?? useCase;
+    const tag = api.tags[(seed + i * 3) % Math.max(1, api.tags.length)] ?? "data";
+
+    const ctx = {
+      name: api.name,
+      useCase,
+      otherUseCase: otherUseCase === useCase ? useCase : otherUseCase,
+      tag,
+      latency: api.latency,
+      provider: api.provider,
+    };
+
+    const key = rating >= 5 ? "praise" : rating === 4 ? "measured" : "critical";
+    const pool = key === "praise" ? praise : key === "measured" ? measured : critical;
+    const nth = used.get(key) ?? 0;
+    used.set(key, nth + 1);
+
+    const { title, body } = pool[(seed + nth) % pool.length](ctx);
+
+    out.push({ name: voice.name, role: voice.role, rating, title, body });
+  }
+
+  return out;
+}
+
+/**
+ * Accounts an earlier seeder created purely to attribute a shared review set.
+ * Retiring them removes those reviews too, via the cascade on reviews.user_id.
+ * These stay on the old zephiel.dev domain deliberately: they identify rows
+ * already in the database, so renaming them here would strand those rows.
+ */
+export const legacyReviewerEmails = [
+  "amara@zephiel.dev",
+  "daniel@zephiel.dev",
+  "priya@zephiel.dev",
+  "tomas@zephiel.dev",
+  "lin@zephiel.dev",
+];
 
 export const multistoreReviews: SeedReview[] = [
   { name: "Chidi Nwosu", role: "Head of Engineering", rating: 5, body: "We run seven storefronts across three platforms. Before this, inventory drifted between them constantly and someone reconciled it by hand every Monday. That job no longer exists." },

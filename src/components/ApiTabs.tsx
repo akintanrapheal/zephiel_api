@@ -34,6 +34,8 @@ export default function ApiTabs({
   ownReview: { rating: number; title: string; body: string; role: string } | null;
 }) {
   const [tab, setTab] = useState<Tab>("Overview");
+  const [allReviews, setAllReviews] = useState(false);
+  const shown = allReviews ? reviews : reviews.slice(0, 8);
   const perUnit = api.plans.find((p) => p.unit)?.unit;
 
   return (
@@ -197,7 +199,7 @@ export default function ApiTabs({
 
             {canReview && <ReviewForm apiId={api.id!} apiSlug={api.slug} existing={ownReview} />}
 
-            {reviews.map((r) => (
+            {shown.map((r) => (
               <div key={r.id} className="rounded-2xl border border-line bg-surface p-6">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-elevated text-xs font-semibold text-ink">
@@ -221,6 +223,16 @@ export default function ApiTabs({
                 <p className="mt-1.5 text-sm leading-6 text-muted">{r.body}</p>
               </div>
             ))}
+
+            {reviews.length > shown.length && (
+              <button
+                type="button"
+                onClick={() => setAllReviews(true)}
+                className="w-full rounded-2xl border border-line bg-surface px-6 py-3.5 text-sm font-medium text-ink transition hover:border-brand-600 hover:text-brand-600"
+              >
+                Show all {reviews.length} reviews
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -52,7 +52,7 @@ export default async function ApiDetailPage({
     getCategoryBySlug(api.category),
     getApisByCategory(api.category),
     getCurrentUser(),
-    getReviews(api.id!),
+    getReviews(api.id!, 40),
     getReviewSummary(api.id!),
   ]);
 

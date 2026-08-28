@@ -120,7 +120,7 @@ async function handle(
 
 function fail(status: number, code: string, message: string, headers: Record<string, string> = {}) {
   return NextResponse.json(
-    { success: false, error: { code, message, docs: "https://zephiel.dev/docs#errors" } },
+    { success: false, error: { code, message, docs: "https://zephiel.com/docs#errors" } },
     { status, headers }
   );
 }

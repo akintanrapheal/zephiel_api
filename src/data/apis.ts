@@ -152,7 +152,7 @@ const coreApis: Api[] = [
       { method: "GET", path: "/bulk/{jobId}", summary: "Fetch results for a bulk job" },
     ],
     sampleResponse: `{
-  "email": "ada@zephiel.dev",
+  "email": "ada@zephiel.com",
   "deliverable": true,
   "score": 96,
   "checks": {
@@ -306,7 +306,7 @@ const coreApis: Api[] = [
     ],
     sampleResponse: `{
   "success": true,
-  "file_url": "https://cdn.zephiel.dev/f/9f3c1a20.pdf",
+  "file_url": "https://cdn.zephiel.com/f/9f3c1a20.pdf",
   "pages": 4,
   "bytes": 184320,
   "expires_at": "2026-08-27T09:00:00Z"
@@ -477,8 +477,8 @@ const coreApis: Api[] = [
       { method: "POST", path: "/batch", summary: "Queue many captures at once" },
     ],
     sampleResponse: `{
-  "url": "https://zephiel.dev",
-  "image_url": "https://cdn.zephiel.dev/s/3ac91f.png",
+  "url": "https://zephiel.com",
+  "image_url": "https://cdn.zephiel.com/s/3ac91f.png",
   "width": 1440,
   "height": 3820,
   "cached": false
@@ -548,7 +548,7 @@ const coreApis: Api[] = [
   "query": "best api marketplace",
   "engine": "google",
   "organic": [
-    { "position": 1, "title": "Zephiel API", "link": "https://zephiel.dev" }
+    { "position": 1, "title": "Zephiel API", "link": "https://zephiel.com" }
   ],
   "total_results": 48200000
 }`,
@@ -579,7 +579,7 @@ const coreApis: Api[] = [
       { method: "POST", path: "/optimize", summary: "Compress with perceptual quality targets" },
     ],
     sampleResponse: `{
-  "output_url": "https://cdn.zephiel.dev/i/7be21c.avif",
+  "output_url": "https://cdn.zephiel.com/i/7be21c.avif",
   "format": "avif",
   "width": 1200,
   "height": 800,

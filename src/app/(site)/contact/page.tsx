@@ -7,9 +7,9 @@ export const metadata: Metadata = {
 };
 
 const channels = [
-  { title: "Sales", body: "Volume pricing, enterprise SLAs, and procurement paperwork.", meta: "sales@zephiel.dev" },
-  { title: "Support", body: "Integration questions and incidents. Priority routing on paid plans.", meta: "support@zephiel.dev" },
-  { title: "Providers", body: "Listing an API on the marketplace.", meta: "partners@zephiel.dev" },
+  { title: "Sales", body: "Volume pricing, enterprise SLAs, and procurement paperwork.", meta: "sales@zephiel.com" },
+  { title: "Support", body: "Integration questions and incidents. Priority routing on paid plans.", meta: "support@zephiel.com" },
+  { title: "Providers", body: "Listing an API on the marketplace.", meta: "partners@zephiel.com" },
 ];
 
 export default function ContactPage() {

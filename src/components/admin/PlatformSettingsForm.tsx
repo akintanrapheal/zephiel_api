@@ -24,7 +24,7 @@ export default function PlatformSettingsForm({
           name="supportEmail"
           type="email"
           defaultValue={supportEmail}
-          placeholder="support@zephiel.dev"
+          placeholder="support@zephiel.com"
         />
       </div>
 

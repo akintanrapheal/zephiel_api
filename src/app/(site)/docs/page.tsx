@@ -102,7 +102,7 @@ export default async function DocsPage() {
           <section id="requests" className="mt-14 scroll-mt-24">
             <h2 className="text-xl font-semibold tracking-tight text-ink">Requests &amp; responses</h2>
             <p className="mt-3 text-sm leading-7 text-muted">
-              The base URL is <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-ink">https://api.zephiel.dev/v1/&#123;api-slug&#125;</code>.
+              The base URL is <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-ink">https://zephiel.com/api/v1/&#123;api-slug&#125;</code>.
               Responses are JSON, UTF-8, and always include a top-level{" "}
               <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-ink">success</code> boolean.
             </p>
@@ -113,7 +113,7 @@ export default async function DocsPage() {
     "code": "rate_limited",
     "message": "Plan rate limit of 60 req/min exceeded.",
     "retry_after": 23,
-    "docs": "https://zephiel.dev/docs#rate-limits"
+    "docs": "https://zephiel.com/docs#rate-limits"
   }
 }`}</code>
             </pre>
@@ -179,7 +179,7 @@ Retry-After: 23`}</code>
                 { name: "TypeScript", cmd: "npm i @zephiel/sdk" },
                 { name: "Python", cmd: "pip install zephiel" },
                 { name: "PHP", cmd: "composer require zephiel/sdk" },
-                { name: "Go", cmd: "go get zephiel.dev/sdk" },
+                { name: "Go", cmd: "go get zephiel.com/sdk" },
               ].map((s) => (
                 <div key={s.name} className="rounded-xl border border-line bg-surface p-4">
                   <p className="text-sm font-semibold text-ink">{s.name}</p>

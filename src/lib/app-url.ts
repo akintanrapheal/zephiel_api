@@ -21,3 +21,12 @@ export function appUrl() {
 
   return raw.replace(/\/$/, "");
 }
+
+/**
+ * Public base for gateway calls, shown in documentation and code samples.
+ *
+ * This is a literal rather than `appUrl()` because client components render it
+ * too, and it must match the route that actually serves the gateway:
+ * /api/v1/{slug}/{path}.
+ */
+export const GATEWAY_BASE = "https://zephiel.com/api/v1";
