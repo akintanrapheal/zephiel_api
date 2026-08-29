@@ -6,6 +6,14 @@ import { useFormStatus } from "react-dom";
 import { subscribe } from "@/server/actions/subscribe";
 import ApiIcon from "@/components/ApiIcon";
 import { cn, compact } from "@/lib/utils";
+import BillingToggle from "@/components/BillingToggle";
+import {
+  isContactSales,
+  priceFor,
+  formatPrice,
+  ANNUAL_DISCOUNT_PERCENT,
+  type BillingInterval,
+} from "@/lib/plans";
 
 type Plan = {
   id: string;
@@ -35,11 +43,15 @@ export default function PlanChooser({
     used: number;
     quota: number;
     currentPeriodEnd: string | null;
+    billingInterval?: BillingInterval;
   };
   plans: Plan[];
   paymentsEnabled: boolean;
 }) {
   const [units, setUnits] = useState(subscription.units);
+  const [interval, setInterval] = useState<BillingInterval>(
+    subscription.billingInterval ?? "monthly"
+  );
 
   const current = plans.find((p) => p.name === subscription.planName);
   const currentMonthly = (current?.price ?? 0) * (current?.unit ? subscription.units : 1);
@@ -115,11 +127,23 @@ export default function PlanChooser({
         </div>
       )}
 
+      {plans.some((p) => p.price > 0 && !isContactSales(p.name)) && (
+        <div className="border-t border-line px-5 pt-5">
+          <BillingToggle value={interval} onChange={setInterval} />
+          {interval === "annual" && (
+            <p className="mt-3 text-center text-xs text-muted">
+              Annual plans are charged for ten months, so you save {ANNUAL_DISCOUNT_PERCENT}%.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         {plans.map((p) => {
           const isCurrent = p.name === subscription.planName;
           const billableUnits = p.unit ? units : 1;
-          const monthly = p.price * billableUnits;
+          const quoted = isContactSales(p.name);
+          const periodTotal = priceFor(p.price, interval) * billableUnits;
           const isUpgrade = p.quota > subscription.quota;
           const blocked = p.price > 0 && !paymentsEnabled;
 
@@ -147,14 +171,19 @@ export default function PlanChooser({
 
               <p className="mt-2 flex items-baseline gap-1">
                 <span className="text-2xl font-semibold tracking-tight text-ink">
-                  {monthly === 0 ? "Free" : `$${monthly.toLocaleString()}`}
+                  {quoted ? "Custom" : periodTotal === 0 ? "Free" : formatPrice(periodTotal)}
                 </span>
-                {monthly > 0 && <span className="text-xs text-muted">/mo</span>}
+                {!quoted && periodTotal > 0 && (
+                  <span className="text-xs text-muted">
+                    /{interval === "annual" ? "yr" : "mo"}
+                  </span>
+                )}
               </p>
 
-              {p.unit && p.price > 0 && (
+              {!quoted && p.unit && p.price > 0 && (
                 <p className="text-xs text-muted">
                   ${p.price}/{p.unit} × {billableUnits}
+                  {interval === "annual" ? " × 10 months" : ""}
                 </p>
               )}
 
@@ -173,11 +202,19 @@ export default function PlanChooser({
                 <p className="mt-4 rounded-lg bg-elevated px-3 py-2 text-center text-xs text-muted">
                   {renews ? `Renews ${renews}` : "Active"}
                 </p>
+              ) : quoted ? (
+                <Link
+                  href={`/contact?plan=enterprise&api=${subscription.apiSlug}`}
+                  className="mt-4 rounded-lg border border-line px-3 py-2 text-center text-xs font-semibold text-ink transition hover:bg-elevated"
+                >
+                  Contact sales
+                </Link>
               ) : (
                 <form action={subscribe} className="mt-4">
                   <input type="hidden" name="planId" value={p.id} />
                   <input type="hidden" name="apiSlug" value={subscription.apiSlug} />
                   <input type="hidden" name="units" value={billableUnits} />
+                  <input type="hidden" name="interval" value={interval} />
                   <ChangeButton
                     label={
                       blocked

@@ -1,28 +1,50 @@
+import Link from "next/link";
 import type { Plan } from "@/lib/types";
-import { cn, money } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { subscribe } from "@/server/actions/subscribe";
+import {
+  isContactSales,
+  priceFor,
+  formatPrice,
+  intervalSuffix,
+  ANNUAL_DISCOUNT_PERCENT,
+  type BillingInterval,
+} from "@/lib/plans";
 
 export default function PlanCard({
   plan,
   apiSlug,
   currentPlan,
+  interval = "monthly",
+  href,
 }: {
   plan: Plan;
   /** When supplied the card becomes actionable and can be subscribed to. */
   apiSlug?: string;
   currentPlan?: string | null;
+  interval?: BillingInterval;
+  /** Where a non-actionable card should send the visitor instead. */
+  href?: string;
 }) {
   const isCurrent = currentPlan != null && currentPlan === plan.name;
-  const isEnterprise = plan.name === "Enterprise";
-  const actionable = Boolean(apiSlug && plan.id) && !isEnterprise;
+  const quoted = isContactSales(plan.name);
+  const actionable = Boolean(apiSlug && plan.id) && !quoted;
+
+  const periodPrice = priceFor(plan.price, interval);
+  const isFree = plan.price === 0 && !quoted;
 
   const label = isCurrent
     ? "Current plan"
-    : isEnterprise
+    : quoted
       ? "Contact sales"
-      : plan.price === 0
+      : isFree
         ? "Start free"
         : "Subscribe";
+
+  // A quoted plan never shows a number, whatever its stored price: it is not
+  // buyable at that figure, so printing it alongside "Contact sales" invites
+  // exactly the confusion it caused on the dashboard.
+  const priceLabel = quoted ? "Custom" : isFree ? "Free" : formatPrice(periodPrice);
 
   return (
     <div
@@ -39,13 +61,18 @@ export default function PlanCard({
 
       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">{plan.name}</h3>
       <p className="mt-3 flex items-baseline gap-1">
-        <span className="text-3xl font-semibold tracking-tight text-ink">
-          {isEnterprise && plan.price === 0 ? "Custom" : money(plan.price)}
-        </span>
-        {plan.price > 0 && (
-          <span className="text-sm text-muted">{plan.unit ? `/${plan.unit}/mo` : "/mo"}</span>
+        <span className="text-3xl font-semibold tracking-tight text-ink">{priceLabel}</span>
+        {!quoted && periodPrice > 0 && (
+          <span className="text-sm text-muted">{intervalSuffix(interval, plan.unit)}</span>
         )}
       </p>
+
+      {!quoted && periodPrice > 0 && interval === "annual" && (
+        <p className="mt-1 text-xs text-accent">
+          {formatPrice(plan.price)}
+          {plan.unit ? `/${plan.unit}` : ""}/mo billed annually &middot; {ANNUAL_DISCOUNT_PERCENT}% off
+        </p>
+      )}
 
       <p className="mt-3 text-sm font-medium text-ink">{plan.requests}</p>
       <p className="text-xs text-muted">{plan.rateLimit}</p>
@@ -65,6 +92,7 @@ export default function PlanCard({
         <form action={subscribe} className="mt-6 space-y-3">
           <input type="hidden" name="planId" value={plan.id} />
           <input type="hidden" name="apiSlug" value={apiSlug} />
+          <input type="hidden" name="interval" value={interval} />
 
           {plan.unit && plan.price > 0 && (
             <label className="block">
@@ -95,18 +123,24 @@ export default function PlanCard({
             {label}
           </button>
         </form>
+      ) : isCurrent ? (
+        <p className="mt-6 rounded-xl border border-line px-4 py-2.5 text-center text-sm font-semibold text-muted">
+          {label}
+        </p>
       ) : (
-        <button
-          disabled={isCurrent}
+        // Previously an inert <button>: every card here rendered a CTA that did
+        // nothing at all, including all four on the pricing page.
+        <Link
+          href={quoted ? `/contact?plan=${encodeURIComponent(plan.name.toLowerCase())}` : (href ?? "/signup")}
           className={cn(
-            "mt-6 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60",
+            "mt-6 rounded-xl px-4 py-2.5 text-center text-sm font-semibold transition",
             plan.popular
               ? "bg-brand-600 text-white hover:bg-brand-700"
               : "border border-line text-ink hover:bg-elevated"
           )}
         >
           {label}
-        </button>
+        </Link>
       )}
     </div>
   );

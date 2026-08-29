@@ -61,7 +61,11 @@ export async function processRenewals() {
   const rolled = await sql<{ id: string }[]>`
     UPDATE subscriptions s
     SET used = 0,
-        current_period_end = s.current_period_end + interval '1 month',
+        -- Roll forward by the period the subscription is actually billed on,
+        -- so an annual free plan does not reset twelve times a year.
+        current_period_end = s.current_period_end +
+          (CASE WHEN s.billing_interval = 'annual'
+                THEN interval '1 year' ELSE interval '1 month' END),
         updated_at = now()
     FROM plans p
     WHERE p.id = s.plan_id

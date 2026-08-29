@@ -9,6 +9,7 @@ export async function getSubscriptions(userId: string): Promise<Subscription[]> 
       a.name AS "apiName", a.slug AS "apiSlug", a.logo AS "apiLogo", a.color AS "apiColor", a.icon AS "apiIcon",
       p.name AS "planName", p.price::float8 AS "planPrice", p.unit AS "planUnit",
       s.status, s.quota, s.used, s.units,
+      s.billing_interval AS "billingInterval",
       s.current_period_end AS "currentPeriodEnd", s.created_at AS "createdAt"
     FROM subscriptions s
     JOIN apis a  ON a.id = s.api_id

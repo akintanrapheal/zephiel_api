@@ -1,5 +1,6 @@
 import "server-only";
 import { sql } from "@/lib/db";
+import { apis as seedApis } from "@/data/apis";
 import type { Api, Category, Endpoint, Plan } from "@/lib/types";
 
 type ApiRow = {
@@ -161,9 +162,22 @@ export async function getCategoryCounts() {
   return Object.fromEntries(rows.map((r) => [r.slug, Number(r.count)]));
 }
 
+/**
+ * Published listing count, used in marketing copy.
+ *
+ * Tolerant of an unreachable database for the same reason the sitemap is:
+ * these pages are prerendered at build time, which can run before the database
+ * exists or during a brief outage, and failing the whole build over a number
+ * in a sentence is the wrong trade. Falls back to the catalogue in src/data.
+ */
 export async function countApis() {
-  const [row] = await sql<{ count: string }[]>`
-    SELECT COUNT(*)::text AS count FROM apis WHERE published = true
-  `;
-  return Number(row?.count ?? 0);
+  try {
+    const [row] = await sql<{ count: string }[]>`
+      SELECT COUNT(*)::text AS count FROM apis WHERE published = true
+    `;
+    return Number(row?.count ?? 0) || seedApis.length;
+  } catch (err) {
+    console.warn("countApis: database unavailable, using the seed catalogue.", err);
+    return seedApis.length;
+  }
 }

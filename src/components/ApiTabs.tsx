@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { Api } from "@/lib/types";
 import CodeSamples from "./CodeSamples";
 import PlanCard from "./PlanCard";
+import BillingToggle from "./BillingToggle";
+import { isContactSales, type BillingInterval } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import ReviewForm from "./ReviewForm";
 import type { Review, ReviewSummary } from "@/server/reviews";
@@ -35,6 +37,7 @@ export default function ApiTabs({
 }) {
   const [tab, setTab] = useState<Tab>("Overview");
   const [allReviews, setAllReviews] = useState(false);
+  const [interval, setInterval] = useState<BillingInterval>("monthly");
   const shown = allReviews ? reviews : reviews.slice(0, 8);
   const perUnit = api.plans.find((p) => p.unit)?.unit;
 
@@ -142,14 +145,18 @@ export default function ApiTabs({
           <div>
             <p className="text-sm text-muted">
               {perUnit
-                ? `Plans are billed monthly per connected ${perUnit}, counted daily and prorated, so adding or removing one mid-month only changes that month's total by the days it was active.`
-                : "Plans are billed monthly and can be changed or cancelled at any time. Overage is charged per 1,000 requests rather than hard-blocking your traffic."}
+                ? `Plans are billed per connected ${perUnit}, counted daily and prorated, so adding or removing one mid-period only changes that period's total by the days it was active.`
+                : "Plans can be changed or cancelled at any time. Overage is charged per 1,000 requests rather than hard-blocking your traffic."}
             </p>
             {api.plans.length === 0 && (
               <p className="mt-6 rounded-xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
                 No plans have been published for this API yet — it cannot be subscribed to.
               </p>
             )}
+            {api.plans.some((p) => p.price > 0 && !isContactSales(p.name)) && (
+              <BillingToggle value={interval} onChange={setInterval} className="mt-6" />
+            )}
+
             <div
               className={cn(
                 "mt-6 grid gap-4",
@@ -157,7 +164,13 @@ export default function ApiTabs({
               )}
             >
               {api.plans.map((p) => (
-                <PlanCard key={p.name} plan={p} apiSlug={api.slug} currentPlan={currentPlan} />
+                <PlanCard
+                  key={p.name}
+                  plan={p}
+                  apiSlug={api.slug}
+                  currentPlan={currentPlan}
+                  interval={interval}
+                />
               ))}
             </div>
           </div>

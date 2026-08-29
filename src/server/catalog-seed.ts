@@ -131,7 +131,15 @@ async function seedReviews() {
 
   // The reviews these accounts carried repeated the same five bodies on every
   // listing. Removing the accounts removes those rows with them.
-  await sql`DELETE FROM users WHERE email = ANY(${legacyReviewerEmails}) AND role = 'customer'`;
+  // Never take an account that has real activity: these addresses only ever
+  // belonged to seed placeholders, but deleting a user cascades to their
+  // subscriptions, stores, and keys, so the guard is worth the line.
+  await sql`
+    DELETE FROM users u
+    WHERE u.email = ANY(${legacyReviewerEmails}) AND u.role = 'customer'
+      AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = u.id)
+      AND NOT EXISTS (SELECT 1 FROM stores st WHERE st.user_id = u.id)
+  `;
 
   const [ms] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
   if (ms) {

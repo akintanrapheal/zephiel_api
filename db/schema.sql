@@ -328,3 +328,13 @@ DELETE FROM plans p
     AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.plan_id = p.id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS plans_api_name_idx ON plans(api_id, name);
+
+-- Subscriptions can be billed monthly or annually; annual is charged for ten
+-- months. The column drives both the renewal period and what the invoice says.
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_interval text NOT NULL DEFAULT 'monthly';
+
+DO $$ BEGIN
+  ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_billing_interval_check
+    CHECK (billing_interval IN ('monthly','annual'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

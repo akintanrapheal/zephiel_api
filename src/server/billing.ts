@@ -1,6 +1,7 @@
 import "server-only";
 import type { JSONValue } from "postgres";
 import { sql } from "@/lib/db";
+import { isBillingInterval, periodEndFor } from "@/lib/plans";
 import { verifyTransaction } from "@/lib/paystack";
 
 export type ActivationResult =
@@ -46,8 +47,13 @@ export async function activateFromReference(reference: string): Promise<Activati
     return { ok: false, reason: `Payment was not completed (${verified.status}).` };
   }
 
-  const periodEnd = new Date();
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
+  // The period paid for follows the subscription's own interval; this used to
+  // add a month unconditionally, so an annual payment bought one month.
+  const [sub] = await sql<{ billing_interval: string }[]>`
+    SELECT billing_interval FROM subscriptions WHERE id = ${payment.subscription_id} LIMIT 1
+  `;
+  const interval = isBillingInterval(sub?.billing_interval) ? sub.billing_interval : "monthly";
+  const periodEnd = periodEndFor(interval);
 
   await sql.begin(async (tx) => {
     await tx`

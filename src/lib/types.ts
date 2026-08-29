@@ -85,6 +85,7 @@ export type Subscription = {
   quota: number;
   used: number;
   units: number;
+  billingInterval: "monthly" | "annual";
   currentPeriodEnd: Date | null;
   createdAt: Date;
 };

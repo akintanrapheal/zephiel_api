@@ -114,6 +114,7 @@ export default async function BillingPage() {
               units: s.units,
               used: s.used,
               quota: s.quota,
+              billingInterval: s.billingInterval,
               currentPeriodEnd: s.currentPeriodEnd
                 ? new Date(s.currentPeriodEnd).toISOString()
                 : null,

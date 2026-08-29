@@ -476,12 +476,20 @@ try {
   const [before] = await sql<{ quota: number; plan_id: string }[]>`
     SELECT quota, plan_id FROM subscriptions WHERE id = ${msSub.id}
   `;
+  // Excludes Enterprise deliberately: it is priced 0 on Multistore but quoted,
+  // so it is not a free tier anyone can switch to. This test used to pick it.
   const [target] = await sql<{ id: string; quota: number }[]>`
     SELECT p.id, p.quota FROM plans p
     JOIN subscriptions s ON s.api_id = p.api_id
     WHERE s.id = ${msSub.id} AND p.price = 0 AND p.id <> ${before.plan_id}
+      AND p.name <> 'Enterprise'
     LIMIT 1
   `;
+
+  check(
+    "billing page quotes Enterprise instead of offering it as free",
+    billingHtml.includes("/contact?plan=enterprise") && !/Switch to Free[\s\S]{0,80}Enterprise/.test(billingHtml)
+  );
   if (target) {
     await submit("/dashboard/billing", {
       planId: target.id,
@@ -921,6 +929,59 @@ try {
       headers: { "content-type": "application/json", "x-paystack-signature": sig },
     });
     check("webhook accepts a correctly signed payload", signed.status === 200, `status ${signed.status}`);
+  }
+
+  // ------------------------------------------------------------- pricing --
+  console.log("\nPlans & billing period");
+
+  const pricingHtml = await (await fetch(`${BASE}/pricing`)).text();
+  check("pricing page quotes Enterprise rather than pricing it", pricingHtml.includes("Custom"));
+  check("pricing page links Enterprise to sales", pricingHtml.includes("/contact?plan=enterprise"));
+  check("pricing page offers a billing period toggle", pricingHtml.includes("Billing period"));
+
+  {
+    // Enterprise is quoted, never sold. The control is hidden, but the form
+    // post is reachable, and its quota is unlimited — so the refusal has to be
+    // server-side.
+    const [entPlan] = await sql<{ id: string; slug: string }[]>`
+      SELECT p.id, a.slug FROM plans p JOIN apis a ON a.id = p.api_id
+      WHERE p.name = 'Enterprise' AND a.slug = 'ip-intelligence' LIMIT 1
+    `;
+    await submit(`/marketplace/${entPlan.slug}`, {
+      planId: entPlan.id,
+      apiSlug: entPlan.slug,
+    }, cookie, "$ACTION_");
+    const [bought] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+      WHERE s.user_id = ${user.id} AND p.name = 'Enterprise'
+    `;
+    check("Enterprise cannot be subscribed to by posting the form", Number(bought.c) === 0);
+
+    // A free plan taken annually gets a year, not a month.
+    const [freePlan] = await sql<{ id: string }[]>`
+      SELECT p.id FROM plans p JOIN apis a ON a.id = p.api_id
+      WHERE a.slug = 'ip-intelligence' AND p.price = 0 ORDER BY p.sort_order LIMIT 1
+    `;
+    await submit("/marketplace/ip-intelligence", {
+      planId: freePlan.id,
+      apiSlug: "ip-intelligence",
+      interval: "annual",
+    }, cookie, "$ACTION_");
+    // Scoped to this API: the account already holds a Multistore subscription
+    // from the store checks above, and an unfiltered LIMIT 1 picked that one.
+    const [annual] = await sql<{ interval: string; days: number }[]>`
+      SELECT s.billing_interval AS interval,
+             EXTRACT(DAY FROM (s.current_period_end - now()))::int AS days
+      FROM subscriptions s JOIN apis a ON a.id = s.api_id
+      WHERE s.user_id = ${user.id} AND a.slug = 'ip-intelligence' LIMIT 1
+    `;
+    check("annual billing is recorded on the subscription", annual?.interval === "annual", annual?.interval ?? "none");
+    check("annual subscription runs for a year", (annual?.days ?? 0) > 360, `${annual?.days} days`);
+
+    await sql`
+      DELETE FROM subscriptions s USING apis a
+      WHERE a.id = s.api_id AND s.user_id = ${user.id} AND a.slug = 'ip-intelligence'
+    `;
   }
 
   // ---------------------------------------------- admin sign-in address ----

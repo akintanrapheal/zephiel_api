@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import PlanCard from "@/components/PlanCard";
+import PricingPlans from "@/components/PricingPlans";
 import { countApis } from "@/server/catalog";
 import type { Plan } from "@/lib/types";
 
@@ -123,10 +123,11 @@ export default async function PricingPage() {
         </p>
       </header>
 
-      <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {platformPlans.map((p) => (
-          <PlanCard key={p.name} plan={p} />
-        ))}
+      <div className="mt-12">
+        <PricingPlans
+          plans={platformPlans}
+          hrefs={{ Free: "/signup", Developer: "/signup", Team: "/signup" }}
+        />
       </div>
 
       <section className="mt-20">
