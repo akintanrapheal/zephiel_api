@@ -317,3 +317,14 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
 -- in the unique index, so admin-entered rows are not limited to one per API.
 ALTER TABLE reviews ALTER COLUMN user_id DROP NOT NULL;
 ALTER TABLE reviews ADD COLUMN IF NOT EXISTS author_name text NOT NULL DEFAULT '';
+
+-- Plans are upserted by (api_id, name) rather than replaced, because
+-- subscriptions.plan_id cascades: deleting a plan deletes every subscription
+-- on it, and with it the customer's stores and per-store keys. Reseeding the
+-- catalogue must never do that.
+DELETE FROM plans p
+  USING plans q
+  WHERE p.api_id = q.api_id AND p.name = q.name AND p.id > q.id
+    AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.plan_id = p.id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS plans_api_name_idx ON plans(api_id, name);

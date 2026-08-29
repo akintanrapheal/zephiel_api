@@ -84,15 +84,30 @@ try {
       RETURNING id
     `;
 
-    await sql`DELETE FROM plans WHERE api_id = ${api.id}`;
+    // Upserted, never replaced: subscriptions.plan_id cascades, so deleting a
+    // plan would delete every subscription on it along with that customer's
+    // stores and per-store keys.
     for (const [i, p] of a.plans.entries()) {
       await sql`
         INSERT INTO plans (api_id, name, price, unit, requests, rate_limit, features, popular, quota, sort_order)
         VALUES (${api.id}, ${p.name}, ${p.price}, ${p.unit ?? null}, ${p.requests},
                 ${p.rateLimit}, ${p.features}, ${p.popular ?? false},
                 ${quotaFor(p.requests)}, ${i})
+        ON CONFLICT (api_id, name) DO UPDATE SET
+          price = EXCLUDED.price, unit = EXCLUDED.unit, requests = EXCLUDED.requests,
+          rate_limit = EXCLUDED.rate_limit, features = EXCLUDED.features,
+          popular = EXCLUDED.popular, quota = EXCLUDED.quota, sort_order = EXCLUDED.sort_order
       `;
     }
+
+    // A plan dropped from the data file goes only if nobody is on it. One that
+    // still has subscribers stays until those are moved.
+    await sql`
+      DELETE FROM plans
+      WHERE api_id = ${api.id}
+        AND name <> ALL(${a.plans.map((p) => p.name)})
+        AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.plan_id = plans.id)
+    `;
 
     await sql`DELETE FROM endpoints WHERE api_id = ${api.id}`;
     for (const [i, e] of a.endpoints.entries()) {

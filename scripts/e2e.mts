@@ -234,6 +234,45 @@ try {
   ).text();
   check("settings page reports schema status", schemaHtml.includes("Database schema"));
   check("settings offers a catalogue reseed", schemaHtml.includes("Reseed catalogue"));
+
+  // Reseeding used to DELETE every plan and reinsert it. subscriptions.plan_id
+  // cascades, so each reseed silently wiped every customer's subscription,
+  // their stores, and their per-store keys. Plans are upserted now; this proves
+  // a customer survives the operation.
+  {
+    const [msApi] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
+    const [msPlan] = await sql<{ id: string; quota: number }[]>`
+      SELECT id, quota FROM plans WHERE api_id = ${msApi.id} ORDER BY sort_order LIMIT 1
+    `;
+    const [subUser] = await sql<{ id: string }[]>`
+      INSERT INTO users (email, name, password_hash, role)
+      VALUES ('e2e_reseed@zephiel.test', 'Reseed Guard', 'scrypt:x:y', 'customer')
+      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+      RETURNING id
+    `;
+    const [guardSub] = await sql<{ id: string }[]>`
+      INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units)
+      VALUES (${subUser.id}, ${msApi.id}, ${msPlan.id}, 'active', ${msPlan.quota}, 2)
+      ON CONFLICT (user_id, api_id) DO UPDATE SET status = 'active'
+      RETURNING id
+    `;
+    await sql`
+      INSERT INTO stores (user_id, subscription_id, name, platform)
+      VALUES (${subUser.id}, ${guardSub.id}, 'Reseed Guard Store', 'shopify')
+    `;
+
+    // Driven through the real admin form, the way an operator triggers it.
+    await submit("/admin/settings", {}, adminCookie, "Reseed catalogue");
+
+    const [survived] = await sql<{ subs: number; stores: number }[]>`
+      SELECT (SELECT COUNT(*) FROM subscriptions WHERE user_id = ${subUser.id})::int AS subs,
+             (SELECT COUNT(*) FROM stores WHERE user_id = ${subUser.id})::int AS stores
+    `;
+    check("reseeding the catalogue preserves subscriptions", survived.subs === 1, `${survived.subs} left`);
+    check("reseeding the catalogue preserves stores", survived.stores === 1, `${survived.stores} left`);
+
+    await sql`DELETE FROM users WHERE id = ${subUser.id}`;
+  }
   check(
     "reseed states what it leaves alone",
     schemaHtml.includes("customer-written reviews are left"),

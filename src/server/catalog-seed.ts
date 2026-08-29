@@ -26,9 +26,13 @@ function quotaFor(requests: string) {
  *
  * Shared by `npm run db:seed` and the admin console, so there is one
  * implementation rather than two that drift. Idempotent: content is upserted
- * by slug. Plans, endpoints, and seeded reviews are owned by the data files
- * and replaced; accounts, subscriptions, payments, keys, and usage are never
- * touched.
+ * by slug, and plans by (api_id, name).
+ *
+ * Accounts, subscriptions, payments, keys, stores, and usage are never
+ * touched. Plans in particular are upserted rather than replaced: they were
+ * deleted and reinserted until August 2026, and because subscriptions.plan_id
+ * cascades, every reseed silently wiped every customer's subscription, their
+ * stores, and their per-store keys.
  */
 export async function seedCatalogue(): Promise<SeedResult> {
   const result: SeedResult = {
@@ -80,16 +84,31 @@ export async function seedCatalogue(): Promise<SeedResult> {
     `;
     result.apis += 1;
 
-    await sql`DELETE FROM plans WHERE api_id = ${api.id}`;
+    // Upserted, never replaced: subscriptions.plan_id cascades, so deleting a
+    // plan would delete every subscription on it along with that customer's
+    // stores and per-store keys.
     for (const [i, p] of a.plans.entries()) {
       await sql`
         INSERT INTO plans (api_id, name, price, unit, requests, rate_limit, features, popular, quota, sort_order)
         VALUES (${api.id}, ${p.name}, ${p.price}, ${p.unit ?? null}, ${p.requests},
                 ${p.rateLimit}, ${p.features}, ${p.popular ?? false},
                 ${quotaFor(p.requests)}, ${i})
+        ON CONFLICT (api_id, name) DO UPDATE SET
+          price = EXCLUDED.price, unit = EXCLUDED.unit, requests = EXCLUDED.requests,
+          rate_limit = EXCLUDED.rate_limit, features = EXCLUDED.features,
+          popular = EXCLUDED.popular, quota = EXCLUDED.quota, sort_order = EXCLUDED.sort_order
       `;
       result.plans += 1;
     }
+
+    // A plan dropped from the data file goes only if nobody is on it. One that
+    // still has subscribers stays until those are moved.
+    await sql`
+      DELETE FROM plans
+      WHERE api_id = ${api.id}
+        AND name <> ALL(${a.plans.map((p) => p.name)})
+        AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.plan_id = plans.id)
+    `;
 
     await sql`DELETE FROM endpoints WHERE api_id = ${api.id}`;
     for (const [i, e] of a.endpoints.entries()) {
