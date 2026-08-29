@@ -260,6 +260,56 @@ export async function reseedCatalogue(_prev: FormState): Promise<FormState> {
   }
 }
 
+const adminEmailSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address."),
+  current: z.string().min(1, "Enter your current password to confirm."),
+});
+
+/**
+ * Change the signed-in administrator's own sign-in address.
+ *
+ * The email is the login identifier, so moving it is a credential change: it
+ * takes the current password for the same reason the password form does, and
+ * drops other sessions afterwards.
+ */
+export async function changeEmail(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+
+  const parsed = adminEmailSchema.safeParse({
+    email: String(formData.get("email") ?? ""),
+    current: String(formData.get("current") ?? ""),
+  });
+
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
+
+  const next = parsed.data.email;
+  if (next === admin.email.toLowerCase()) {
+    return { error: "That is already your sign-in address." };
+  }
+
+  const [row] = await sql<{ password_hash: string }[]>`
+    SELECT password_hash FROM users WHERE id = ${admin.id} LIMIT 1
+  `;
+  if (!row || !(await verifyPassword(parsed.data.current, row.password_hash))) {
+    return { error: "Your current password is incorrect." };
+  }
+
+  // users.email is unique; check first so this reports a readable message
+  // rather than surfacing a constraint violation.
+  const [taken] = await sql<{ id: string }[]>`
+    SELECT id FROM users WHERE lower(email) = ${next} AND id <> ${admin.id} LIMIT 1
+  `;
+  if (taken) return { error: "Another account already uses that address." };
+
+  await sql`UPDATE users SET email = ${next} WHERE id = ${admin.id}`;
+
+  await sql`DELETE FROM sessions WHERE user_id = ${admin.id}`;
+  await createSession(admin.id);
+
+  revalidatePath("/admin/settings");
+  return { ok: `Sign-in address changed to ${next}. Use it next time you sign in.` };
+}
+
 const passwordSchema = z
   .object({
     current: z.string().min(1, "Enter your current password."),

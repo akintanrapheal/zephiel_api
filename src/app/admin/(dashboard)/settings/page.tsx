@@ -6,6 +6,7 @@ import PaystackSettingsForm from "@/components/admin/PaystackSettingsForm";
 import PlatformSettingsForm from "@/components/admin/PlatformSettingsForm";
 import CopyField from "@/components/admin/CopyField";
 import PasswordForm from "@/components/admin/PasswordForm";
+import EmailForm from "@/components/admin/EmailForm";
 import EmailSettingsForm from "@/components/admin/EmailSettingsForm";
 import { getEmailConfig } from "@/lib/email";
 import { REMINDER_DAYS } from "@/server/notifications";
@@ -155,6 +156,10 @@ export default async function AdminSettingsPage() {
           hasStoredKey={email.source === "settings"}
           reminderDays={REMINDER_DAYS}
         />
+      </Card>
+
+      <Card title="Your sign-in address" padded>
+        <EmailForm email={admin.email} />
       </Card>
 
       <Card title="Your password" padded>

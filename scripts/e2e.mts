@@ -151,6 +151,7 @@ try {
   // --------------------------------------------------------- admin login --
   console.log("\nAdmin");
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@zephiel.com";
+  const adminPass = process.env.ADMIN_PASSWORD ?? "zephiel-admin";
 
   const loginPage = await fetch(`${BASE}/admin/login`, { redirect: "manual" });
   check("admin login page is publicly reachable", loginPage.status === 200, `status ${loginPage.status}`);
@@ -162,7 +163,7 @@ try {
 
   const adminSignin = await submit("/admin/login", {
     email: adminEmail,
-    password: process.env.ADMIN_PASSWORD ?? "zephiel-admin",
+    password: adminPass,
   }, "", "$ACTION_");
   const adminCookie = sessionCookie(adminSignin);
   check("admin can sign in at /admin/login", adminCookie !== "", `status ${adminSignin.status}`);
@@ -265,6 +266,7 @@ try {
   `;
   check("currency setting persists", cur?.value === "USD", cur?.value ?? "(unset)");
   await sql`DELETE FROM settings WHERE key IN ('paystack_currency','usd_to_ngn')`;
+
 
   // -------------------------------------------------------- reminders ----
   console.log("\nRenewal reminders");
@@ -881,6 +883,52 @@ try {
     });
     check("webhook accepts a correctly signed payload", signed.status === 200, `status ${signed.status}`);
   }
+
+  // ---------------------------------------------- admin sign-in address ----
+  console.log("\nAdmin sign-in address");
+
+  check("settings page exposes the sign-in address field", settingsHtml.includes('name="email"'));
+
+  // The email is a login credential, so a wrong password must not move it.
+  await submit("/admin/settings", {
+    email: "hijacked@example.com",
+    current: "definitely-not-the-password",
+  }, adminCookie, 'name="email"');
+  const [unmoved] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM users WHERE email = 'hijacked@example.com'
+  `;
+  check("email change is refused without the correct password", Number(unmoved.c) === 0);
+
+  // An address another account already holds must be refused.
+  const [otherUser] = await sql<{ email: string }[]>`
+    SELECT email FROM users WHERE role = 'customer' ORDER BY created_at LIMIT 1
+  `;
+  if (otherUser) {
+    await submit("/admin/settings", {
+      email: otherUser.email,
+      current: adminPass,
+    }, adminCookie, 'name="email"');
+    const [dupes] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM users WHERE lower(email) = ${otherUser.email.toLowerCase()}
+    `;
+    check("email already in use is refused", Number(dupes.c) === 1, `${dupes.c} accounts hold it`);
+  }
+
+  // The real change, and proof the new address is what signs in afterwards.
+  const moved = "admin-moved@zephiel.com";
+  await submit("/admin/settings", { email: moved, current: adminPass }, adminCookie, 'name="email"');
+  const [after] = await sql<{ c: string }[]>`
+    SELECT COUNT(*)::text AS c FROM users WHERE email = ${moved} AND role = 'admin'
+  `;
+  check("email change with the correct password is applied", Number(after.c) === 1);
+
+  const oldAddress = await submit("/admin/login", { email: adminEmail, password: adminPass }, "", "$ACTION_");
+  check("the old address no longer signs in", !(oldAddress.headers.get("set-cookie") ?? "").includes("session"));
+
+  const newAddress = await submit("/admin/login", { email: moved, password: adminPass }, "", "$ACTION_");
+  check("the new address signs in", (newAddress.headers.get("set-cookie") ?? "").includes("session"));
+
+  await sql`UPDATE users SET email = ${adminEmail} WHERE email = ${moved}`;
 
   // ------------------------------------------------------------ cleanup --
   await sql`DELETE FROM apis WHERE slug = ${slug}`;
