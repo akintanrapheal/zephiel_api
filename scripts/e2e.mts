@@ -930,15 +930,19 @@ try {
 
   await sql`UPDATE users SET email = ${adminEmail} WHERE email = ${moved}`;
 
-  // ------------------------------------------------------------ cleanup --
-  await sql`DELETE FROM apis WHERE slug = ${slug}`;
-  await sql`DELETE FROM users WHERE email = ${email}`;
-
   console.log(`\n${passed} passed, ${failed} failed\n`);
   process.exitCode = failed === 0 ? 0 : 1;
 } catch (err) {
   console.error("\nE2E run crashed:", err);
   process.exitCode = 1;
 } finally {
+  // Cleanup belongs here rather than at the end of the run: a crash partway
+  // through used to leave a published API with no plans, endpoints, or
+  // category behind, which then showed up as three findings in the audit.
+  // Matching on the fixture prefixes rather than this run's own values also
+  // sweeps up anything an earlier crashed run left behind.
+  await sql`DELETE FROM apis WHERE slug LIKE 'e2e-api-%'`;
+  await sql`DELETE FROM users WHERE email LIKE 'e2e\_%@zephiel.test'`;
+
   await sql.end();
 }
