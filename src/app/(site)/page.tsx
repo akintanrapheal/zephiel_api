@@ -15,7 +15,7 @@ export const revalidate = 60;
 
 const stats = (apiCount: number) => [
   { value: String(apiCount), label: "Production APIs" },
-  { value: "3.1M", label: "Calls served daily" },
+  { value: "4.8B", label: "Calls served since 2015" },
   { value: "99.98%", label: "Platform uptime" },
   { value: "68ms", label: "Median latency" },
 ];

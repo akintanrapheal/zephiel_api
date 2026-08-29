@@ -106,7 +106,7 @@ export default async function Footer() {
         </div>
 
         <div className="mt-8 flex flex-col gap-3 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; {new Date().getFullYear()} Zephiel API. All rights reserved.</p>
+          <p>&copy; 2015&ndash;{new Date().getFullYear()} Zephiel API. All rights reserved.</p>
           <p className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-accent" />
             All systems operational

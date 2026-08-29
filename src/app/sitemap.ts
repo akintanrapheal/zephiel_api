@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getApis, getCategories } from "@/server/catalog";
+import { getPosts } from "@/server/posts";
 import { appUrl } from "@/lib/app-url";
 
 // Regenerated hourly so newly published APIs appear without a redeploy.
@@ -33,7 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // exists. A sitemap missing its dynamic entries is far better than a failed
   // build; the next revalidation picks them up.
   try {
-    const [apis, categories] = await Promise.all([getApis(), getCategories()]);
+    const [apis, categories, posts] = await Promise.all([getApis(), getCategories(), getPosts()]);
 
     return [
       ...staticRoutes,
@@ -48,6 +49,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: now,
         changeFrequency: "weekly" as const,
         priority: 0.6,
+      })),
+      // Archive posts carry their own publication date rather than `now`, so a
+      // crawler sees a decade of stable content instead of 34 pages that all
+      // claim to have changed this hour.
+      ...posts.map((p) => ({
+        url: `${BASE}/blog/${p.slug}`,
+        lastModified: new Date(p.publishedAt),
+        changeFrequency: "yearly" as const,
+        priority: 0.5,
       })),
     ];
   } catch (err) {

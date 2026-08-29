@@ -20,7 +20,7 @@ const columns = sql`
   published_at AS "publishedAt"
 `;
 
-export async function getPosts({ limit = 20, includeDrafts = false } = {}): Promise<Post[]> {
+export async function getPosts({ limit = 200, includeDrafts = false } = {}): Promise<Post[]> {
   return sql<Post[]>`
     SELECT ${columns} FROM posts
     ${includeDrafts ? sql`` : sql`WHERE published = true`}

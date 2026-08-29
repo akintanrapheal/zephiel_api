@@ -149,14 +149,15 @@ try {
   console.log(`  ${reviewCount} reviews written`);
 
   console.log(`Seeding ${posts.length} posts...`);
-  for (const [i, post] of posts.entries()) {
+  for (const post of posts) {
     await sql`
       INSERT INTO posts (slug, title, excerpt, body, tag, read_minutes, published, published_at)
       VALUES (${post.slug}, ${post.title}, ${post.excerpt}, ${post.body}, ${post.tag},
-              ${post.readMinutes}, true, now() - (${i * 11}::text || ' days')::interval)
+              ${post.readMinutes}, true, ${post.publishedAt}::date)
       ON CONFLICT (slug) DO UPDATE
         SET title = EXCLUDED.title, excerpt = EXCLUDED.excerpt, body = EXCLUDED.body,
-            tag = EXCLUDED.tag, read_minutes = EXCLUDED.read_minutes, updated_at = now()
+            tag = EXCLUDED.tag, read_minutes = EXCLUDED.read_minutes,
+            published_at = EXCLUDED.published_at, updated_at = now()
     `;
   }
 

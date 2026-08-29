@@ -1,16 +1,22 @@
 /** Seed blog posts, shared by the CLI seeder and the admin console. */
+import { archivePosts } from "./posts-archive";
+
 export type SeedPost = {
   slug: string;
   title: string;
   tag: string;
+  /** ISO date. Explicit so the archive keeps its dates across reseeds. */
+  publishedAt: string;
   readMinutes: number;
   excerpt: string;
   body: string;
 };
 
-export const posts: SeedPost[] = [
+/** The current year's posts. Everything older lives in posts-archive.ts. */
+const recentPosts: SeedPost[] = [
   {
     slug: "why-we-publish-p99",
+    publishedAt: "2026-01-22",
     title: "Why we publish our p99, not our p50",
     tag: "Engineering",
     readMinutes: 6,
@@ -32,6 +38,7 @@ We do not exclude errors from latency. A request that failed slowly still cost y
   },
   {
     slug: "rate-limiting-bursty-clients",
+    publishedAt: "2026-04-09",
     title: "Rate limiting without punishing bursty clients",
     tag: "Engineering",
     readMinutes: 9,
@@ -53,6 +60,7 @@ A 429 carries Retry-After and the remaining allowance. A limit that does not tel
   },
   {
     slug: "one-error-envelope",
+    publishedAt: "2026-06-18",
     title: "One error envelope across every provider",
     tag: "Engineering",
     readMinutes: 7,
@@ -74,6 +82,7 @@ Some upstreams genuinely cannot distinguish between a bad request and an outage.
   },
   {
     slug: "what-a-free-tier-is-for",
+    publishedAt: "2026-08-13",
     title: "A free tier is not a trial",
     tag: "Product",
     readMinutes: 4,
@@ -90,3 +99,6 @@ Every listing has a tier that does not expire. It is small — a hundred calls a
 We convert more slowly and later. We also stop losing the evaluation that got parked for a fortnight because a sprint went sideways.`,
   },
 ];
+
+/** Oldest first in the file; the site orders by date, so order here is cosmetic. */
+export const posts: SeedPost[] = [...archivePosts, ...recentPosts];
