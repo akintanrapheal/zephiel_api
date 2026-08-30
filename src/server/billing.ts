@@ -17,9 +17,12 @@ export type ActivationResult =
  */
 export async function activateFromReference(reference: string): Promise<ActivationResult> {
   const [payment] = await sql<
-    { id: string; status: string; subscription_id: string | null; user_id: string | null }[]
+    {
+      id: string; status: string; subscription_id: string | null; user_id: string | null;
+      plan_id: string | null; units: number; billing_interval: string; amount: string;
+    }[]
   >`
-    SELECT id, status, subscription_id, user_id
+    SELECT id, status, subscription_id, user_id, plan_id, units, billing_interval, amount
     FROM payments WHERE reference = ${reference} LIMIT 1
   `;
 
@@ -47,15 +50,39 @@ export async function activateFromReference(reference: string): Promise<Activati
     return { ok: false, reason: `Payment was not completed (${verified.status}).` };
   }
 
-  // The period paid for follows the subscription's own interval; this used to
-  // add a month unconditionally, so an annual payment bought one month.
-  const [sub] = await sql<{ billing_interval: string }[]>`
-    SELECT billing_interval FROM subscriptions WHERE id = ${payment.subscription_id} LIMIT 1
-  `;
-  const interval = isBillingInterval(sub?.billing_interval) ? sub.billing_interval : "monthly";
+  // What Paystack collected must match what we asked for. The amount is set
+  // server-side at initialize, so a mismatch means something is wrong rather
+  // than merely unexpected, and activating on it would be granting a plan that
+  // was not paid for.
+  const expected = Number(payment.amount);
+  const collected = verified.amount / 100;
+  if (Math.abs(expected - collected) > 0.009) {
+    console.error(`Payment ${reference}: expected ${expected}, Paystack reports ${collected}.`);
+    return { ok: false, reason: "The amount paid does not match this order." };
+  }
+
+  // The period paid for follows the interval the payment was taken on; this
+  // used to add a month unconditionally, so an annual payment bought one month.
+  const interval = isBillingInterval(payment.billing_interval) ? payment.billing_interval : "monthly";
   const periodEnd = periodEndFor(interval);
 
+  // The plan the customer paid for, with the allowance it carries.
+  const [paidPlan] = payment.plan_id
+    ? await sql<{ id: string; quota: number }[]>`
+        SELECT id, quota FROM plans WHERE id = ${payment.plan_id} LIMIT 1
+      `
+    : [];
+
   await sql.begin(async (tx) => {
+    // Claims the row: the browser callback and the webhook can arrive at the
+    // same moment, and both previously passed the status check above before
+    // either had written anything.
+    const claimed = await tx<{ id: string }[]>`
+      UPDATE payments SET status = 'success' WHERE id = ${payment.id} AND status <> 'success'
+      RETURNING id
+    `;
+    if (claimed.length === 0) return;
+
     await tx`
       UPDATE payments SET
         status   = 'success',
@@ -68,14 +95,27 @@ export async function activateFromReference(reference: string): Promise<Activati
     `;
 
     if (payment.subscription_id) {
-      await tx`
-        UPDATE subscriptions SET
-          status = 'active',
-          used = 0,
-          current_period_end = ${periodEnd},
-          updated_at = now()
-        WHERE id = ${payment.subscription_id}
-      `;
+      // The upgrade is applied here rather than at checkout, so the customer
+      // keeps the plan they already paid for until this point.
+      if (paidPlan) {
+        await tx`
+          UPDATE subscriptions SET
+            status = 'active', used = 0,
+            plan_id = ${paidPlan.id}, quota = ${paidPlan.quota},
+            units = ${payment.units}, billing_interval = ${interval},
+            current_period_end = ${periodEnd}, updated_at = now()
+          WHERE id = ${payment.subscription_id}
+        `;
+      } else {
+        // Older payment rows predate plan_id; activate without moving the plan.
+        await tx`
+          UPDATE subscriptions SET
+            status = 'active', used = 0,
+            billing_interval = ${interval},
+            current_period_end = ${periodEnd}, updated_at = now()
+          WHERE id = ${payment.subscription_id}
+        `;
+      }
     }
   });
 

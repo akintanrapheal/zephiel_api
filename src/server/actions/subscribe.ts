@@ -73,24 +73,56 @@ export async function subscribe(formData: FormData) {
     redirect(`/marketplace/${apiSlug}?error=payments-unconfigured`);
   }
 
-  const [subscription] = await sql<{ id: string }[]>`
-    INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units,
-                               billing_interval, current_period_end)
-    VALUES (${user.id}, ${plan.api_id}, ${plan.id}, 'pending', ${plan.quota},
-            ${billableUnits}, ${interval}, NULL)
-    ON CONFLICT (user_id, api_id) DO UPDATE
-      SET plan_id = EXCLUDED.plan_id, status = 'pending', quota = EXCLUDED.quota,
-          units = EXCLUDED.units, billing_interval = EXCLUDED.billing_interval,
-          updated_at = now()
-    RETURNING id
-  `;
-
-  const reference = `zph_${randomBytes(12).toString("hex")}`;
   const amount = toSubunits(price * billableUnits, paystack);
 
+  // An existing subscription is left exactly as it is until the money clears.
+  // Flipping it to 'pending' here revoked the customer's access the moment
+  // they clicked Upgrade, and stranded them there if they abandoned checkout.
+  const [existing] = await sql<{ id: string }[]>`
+    SELECT id FROM subscriptions
+    WHERE user_id = ${user.id} AND api_id = ${plan.api_id} LIMIT 1
+  `;
+
+  let subscriptionId: string;
+  if (existing) {
+    subscriptionId = existing.id;
+  } else {
+    const [created] = await sql<{ id: string }[]>`
+      INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units,
+                                 billing_interval, current_period_end)
+      VALUES (${user.id}, ${plan.api_id}, ${plan.id}, 'pending', ${plan.quota},
+              ${billableUnits}, ${interval}, NULL)
+      RETURNING id
+    `;
+    subscriptionId = created.id;
+  }
+
+  // Reuse a checkout the customer already started for this exact change.
+  // Paystack rejects a second initialize on the same reference, so the link is
+  // stored; without this a double-click created two transactions and took two
+  // payments for one upgrade.
+  const [inFlight] = await sql<{ reference: string; authorization_url: string | null }[]>`
+    SELECT reference, authorization_url FROM payments
+    WHERE user_id = ${user.id}
+      AND subscription_id = ${subscriptionId}
+      AND plan_id = ${plan.id}
+      AND status = 'pending'
+      AND units = ${billableUnits}
+      AND billing_interval = ${interval}
+      AND amount = ${amount / 100}
+      AND created_at > now() - interval '2 hours'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  if (inFlight?.authorization_url) redirect(inFlight.authorization_url);
+
+  const reference = `zph_${randomBytes(12).toString("hex")}`;
+
   await sql`
-    INSERT INTO payments (user_id, subscription_id, reference, amount, currency, status)
-    VALUES (${user.id}, ${subscription.id}, ${reference}, ${amount / 100}, ${paystack.currency}, 'pending')
+    INSERT INTO payments (user_id, subscription_id, plan_id, reference, amount, currency,
+                          status, units, billing_interval)
+    VALUES (${user.id}, ${subscriptionId}, ${plan.id}, ${reference}, ${amount / 100},
+            ${paystack.currency}, 'pending', ${billableUnits}, ${interval})
   `;
 
   let authorizationUrl: string;
@@ -101,7 +133,7 @@ export async function subscribe(formData: FormData) {
       reference,
       callbackUrl: `${appUrl()}/billing/callback`,
       currency: paystack.currency,
-      metadata: { userId: user.id, subscriptionId: subscription.id, planId: plan.id, apiSlug, interval },
+      metadata: { userId: user.id, subscriptionId, planId: plan.id, apiSlug, interval },
     });
     authorizationUrl = init.authorizationUrl;
   } catch (err) {
@@ -109,6 +141,10 @@ export async function subscribe(formData: FormData) {
     console.error("Paystack initialize failed:", err);
     redirect(`/marketplace/${apiSlug}?error=payment-init-failed`);
   }
+
+  await sql`
+    UPDATE payments SET authorization_url = ${authorizationUrl} WHERE reference = ${reference}
+  `;
 
   redirect(authorizationUrl);
 }

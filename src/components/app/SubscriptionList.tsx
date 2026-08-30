@@ -173,14 +173,24 @@ export default function SubscriptionList({ subs }: { subs: Subscription[] }) {
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
                 {s.currentPeriodEnd && (
                   <span className={renews !== null && renews <= 7 ? "font-medium text-amber-600" : undefined}>
+                    {/* "Renews" means money changes hands. A free tier is an
+                        allowance that resets, so it says so instead. */}
                     {renews !== null && renews < 0
                       ? "Expired"
-                      : `Renews ${new Date(s.currentPeriodEnd).toLocaleDateString("en-GB", {
+                      : `${monthly === 0 ? "Allowance resets" : "Renews"} ${new Date(
+                          s.currentPeriodEnd
+                        ).toLocaleDateString("en-GB", {
                           day: "numeric",
                           month: "long",
                           year: "numeric",
                         })}`}
                     {renews !== null && renews >= 0 && ` · ${renews} day${renews === 1 ? "" : "s"} left`}
+                  </span>
+                )}
+
+                {monthly === 0 && (
+                  <span className="rounded-md bg-elevated px-2 py-0.5 font-medium text-muted">
+                    Free plan
                   </span>
                 )}
 

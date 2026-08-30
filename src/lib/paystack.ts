@@ -2,7 +2,17 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSettings } from "./settings";
 
-const BASE = "https://api.paystack.co";
+/**
+ * Paystack's API root.
+ *
+ * Overridable outside production only, so the payment path can be exercised
+ * end to end against a stub. Honouring it in production would turn an
+ * environment variable into a way to redirect real charges.
+ */
+const BASE =
+  process.env.NODE_ENV !== "production" && process.env.PAYSTACK_BASE_URL
+    ? process.env.PAYSTACK_BASE_URL.replace(/\/$/, "")
+    : "https://api.paystack.co";
 
 export type PaystackConfig = {
   secretKey: string | null;

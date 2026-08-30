@@ -932,6 +932,90 @@ try {
     check("webhook accepts a correctly signed payload", signed.status === 200, `status ${signed.status}`);
   }
 
+  // ------------------------------------------------------------ checkout --
+  // Only runs against a Paystack stub (PAYSTACK_BASE_URL), so the suite still
+  // passes with no payment provider configured.
+  if (process.env.PAYSTACK_BASE_URL) {
+    console.log("\nCheckout & upgrades");
+
+    const payEmail = `e2e_pay_${Date.now()}@zephiel.test`;
+    const payCookie = sessionCookie(
+      await submit("/signup", { name: "Payer", email: payEmail, password: "supersecret123" }, "", "$ACTION_")
+    );
+    const [payer] = await sql<{ id: string }[]>`SELECT id FROM users WHERE email = ${payEmail} LIMIT 1`;
+    const [ipApi] = await sql<{ id: string; slug: string }[]>`
+      SELECT id, slug FROM apis WHERE slug = 'ip-intelligence' LIMIT 1
+    `;
+    const [freeTier] = await sql<{ id: string }[]>`
+      SELECT id FROM plans WHERE api_id = ${ipApi.id} AND price = 0 LIMIT 1
+    `;
+    const [paidTier] = await sql<{ id: string; quota: number }[]>`
+      SELECT id, quota::int FROM plans WHERE api_id = ${ipApi.id} AND price > 0
+        AND name <> 'Enterprise' ORDER BY price LIMIT 1
+    `;
+
+    await submit(`/marketplace/${ipApi.slug}`, { planId: freeTier.id, apiSlug: ipApi.slug }, payCookie);
+
+    // Starting an upgrade must not disturb the plan being paid for today.
+    const firstClick = await submit(`/marketplace/${ipApi.slug}`, { planId: paidTier.id, apiSlug: ipApi.slug }, payCookie);
+    const [duringCheckout] = await sql<{ status: string; plan_id: string }[]>`
+      SELECT status, plan_id FROM subscriptions WHERE user_id = ${payer.id} LIMIT 1
+    `;
+    check("starting an upgrade leaves the current subscription active",
+      duringCheckout.status === "active" && duringCheckout.plan_id === freeTier.id,
+      `${duringCheckout.status} on ${duringCheckout.plan_id === freeTier.id ? "free" : "paid"}`);
+
+    // A second click must reuse the same transaction, not open another.
+    const secondClick = await submit(`/marketplace/${ipApi.slug}`, { planId: paidTier.id, apiSlug: ipApi.slug }, payCookie);
+    const [charges] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM payments WHERE user_id = ${payer.id} AND status = 'pending'
+    `;
+    check("clicking upgrade twice opens one charge, not two", charges.c === "1", `${charges.c} pending`);
+    check("both clicks lead to the same checkout",
+      firstClick.headers.get("location") === secondClick.headers.get("location"));
+
+    const [pending] = await sql<{ reference: string }[]>`
+      SELECT reference FROM payments WHERE user_id = ${payer.id} AND status = 'pending' LIMIT 1
+    `;
+
+    // Callback and webhook can land together; exactly one must take effect.
+    const evt = JSON.stringify({
+      event: "charge.success",
+      data: { reference: pending.reference, paid_at: new Date().toISOString() },
+    });
+    const evtSig = createHmac("sha512", process.env.PAYSTACK_SECRET_KEY ?? "").update(evt).digest("hex");
+    await Promise.all([
+      fetch(`${BASE}/billing/callback?reference=${pending.reference}`, { headers: { cookie: payCookie }, redirect: "manual" }),
+      fetch(`${BASE}/api/paystack/webhook`, {
+        method: "POST", body: evt,
+        headers: { "content-type": "application/json", "x-paystack-signature": evtSig },
+      }),
+    ]);
+
+    const [settled] = await sql<{ status: string; plan_id: string; quota: number }[]>`
+      SELECT status, plan_id, quota::int FROM subscriptions WHERE user_id = ${payer.id} LIMIT 1
+    `;
+    const [successes] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM payments WHERE user_id = ${payer.id} AND status = 'success'
+    `;
+    check("payment moves the subscription onto the plan that was bought",
+      settled.plan_id === paidTier.id && settled.quota === paidTier.quota, `quota ${settled.quota}`);
+    check("callback and webhook arriving together settle one payment", successes.c === "1", `${successes.c} succeeded`);
+
+    // An amount that disagrees with Paystack must not grant the plan.
+    await sql`
+      UPDATE payments SET status = 'pending', amount = 99999 WHERE reference = ${pending.reference}
+    `;
+    await sql`UPDATE subscriptions SET status = 'pending' WHERE user_id = ${payer.id}`;
+    await fetch(`${BASE}/billing/callback?reference=${pending.reference}`, { headers: { cookie: payCookie }, redirect: "manual" });
+    const [mismatch] = await sql<{ status: string }[]>`
+      SELECT status FROM subscriptions WHERE user_id = ${payer.id} LIMIT 1
+    `;
+    check("a mismatched amount does not activate the subscription", mismatch.status === "pending", mismatch.status);
+
+    await sql`DELETE FROM users WHERE id = ${payer.id}`;
+  }
+
   // ------------------------------------------------- plan edits & limits --
   console.log("\nPlan edits & store limits");
 

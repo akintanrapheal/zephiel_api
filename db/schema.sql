@@ -338,3 +338,19 @@ DO $$ BEGIN
     CHECK (billing_interval IN ('monthly','annual'));
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- A pending payment carries the change it intends to make, so an upgrade does
+-- not touch the live subscription until the money actually clears. Previously
+-- starting a checkout flipped the subscription to 'pending' immediately, which
+-- revoked the customer's access before they had paid for anything.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS plan_id uuid REFERENCES plans(id) ON DELETE SET NULL;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS units integer NOT NULL DEFAULT 1;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS billing_interval text NOT NULL DEFAULT 'monthly';
+
+-- Paystack refuses a second initialize on the same reference, so the checkout
+-- link is stored and reused. A customer who double-clicks Subscribe is sent
+-- back to the transaction they already started rather than charged twice.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS authorization_url text;
+
+CREATE INDEX IF NOT EXISTS payments_pending_idx
+  ON payments(user_id, subscription_id, status) WHERE status = 'pending';

@@ -200,7 +200,15 @@ export default function PlanChooser({
 
               {isCurrent ? (
                 <p className="mt-4 rounded-lg bg-elevated px-3 py-2 text-center text-xs text-muted">
-                  {renews ? `Renews ${renews}` : "Active"}
+                  {/* A free tier is not renewed, it resets — and the useful
+                      thing to offer there is an upgrade, not a date. */}
+                  {p.price === 0
+                    ? renews
+                      ? `Free — allowance resets ${renews}`
+                      : "Free plan"
+                    : renews
+                      ? `Renews ${renews}`
+                      : "Active"}
                 </p>
               ) : quoted ? (
                 <Link
