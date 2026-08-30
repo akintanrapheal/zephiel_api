@@ -10,6 +10,7 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import postgres from "postgres";
 import { loadEnv } from "./env.mts";
+import { FREE_PLAN_STORE_LIMIT as FREE_STORE_LIMIT } from "../src/lib/plans.ts";
 
 loadEnv();
 
@@ -929,6 +930,94 @@ try {
       headers: { "content-type": "application/json", "x-paystack-signature": sig },
     });
     check("webhook accepts a correctly signed payload", signed.status === 200, `status ${signed.status}`);
+  }
+
+  // ------------------------------------------------- plan edits & limits --
+  console.log("\nPlan edits & store limits");
+
+  {
+    const [msApi] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
+    const [sandbox] = await sql<{ id: string; quota: number }[]>`
+      SELECT id, quota::int FROM plans WHERE api_id = ${msApi.id} AND name = 'Sandbox' LIMIT 1
+    `;
+
+    // subscriptions.quota is a copy taken at subscribe time. Raising the plan
+    // used to leave every existing customer on the old number.
+    await sql`UPDATE subscriptions SET quota = 1 WHERE plan_id = ${sandbox.id}`;
+    await submit(`/admin/apis/${msApi.id}`, {
+      id: sandbox.id,
+      apiId: msApi.id,
+      name: "Sandbox",
+      price: "0",
+      unit: "store",
+      requests: "3 stores, 9,000 calls/mo",
+      rateLimit: "5 req/min",
+      quota: String(sandbox.quota),
+      features: "Up to 3 connected storefronts\nCommunity support",
+    }, adminCookie, `value="${sandbox.id}"`);
+
+    const [propagated] = await sql<{ stale: string }[]>`
+      SELECT COUNT(*)::text AS stale FROM subscriptions
+      WHERE plan_id = ${sandbox.id} AND status IN ('active','pending') AND quota <> ${sandbox.quota}
+    `;
+    check("raising a plan's quota reaches existing subscribers", Number(propagated.stale) === 0,
+      `${propagated.stale} left on the old allowance`);
+
+    // Deleting a plan cascades to its subscriptions, stores, and keys.
+    const [subsBefore] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM subscriptions WHERE plan_id = ${sandbox.id}
+    `;
+    await submit(`/admin/apis/${msApi.id}`, { id: sandbox.id }, adminCookie, "Delete plan");
+    const [planLeft] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM plans WHERE id = ${sandbox.id}
+    `;
+    const [subsAfter] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM subscriptions WHERE plan_id = ${sandbox.id}
+    `;
+    check("a plan with subscribers cannot be deleted", planLeft.c === "1");
+    check("refusing the delete leaves the subscriptions intact", subsAfter.c === subsBefore.c,
+      `${subsBefore.c} -> ${subsAfter.c}`);
+  }
+
+  {
+    // The free tier's advertised store allowance is now enforced; it used to
+    // be a flat 100 for every plan, so Sandbox's limit meant nothing.
+    const freeEmail = `e2e_free_${Date.now()}@zephiel.test`;
+    const freeCookie = sessionCookie(
+      await submit("/signup", { name: "Free Tier", email: freeEmail, password: "supersecret123" }, "", "$ACTION_")
+    );
+    const [freeUser] = await sql<{ id: string }[]>`SELECT id FROM users WHERE email = ${freeEmail} LIMIT 1`;
+    const [msApi2] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
+    const [sandbox2] = await sql<{ id: string; quota: number }[]>`
+      SELECT id, quota::int FROM plans WHERE api_id = ${msApi2.id} AND name = 'Sandbox' LIMIT 1
+    `;
+    await sql`
+      INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units, current_period_end)
+      VALUES (${freeUser.id}, ${msApi2.id}, ${sandbox2.id}, 'active', ${sandbox2.quota}, 1,
+              now() + interval '30 days')
+    `;
+
+    for (let i = 1; i <= FREE_STORE_LIMIT + 1; i++) {
+      await submit("/dashboard/stores", {
+        name: `Free Store ${i}`,
+        platform: "shopify",
+      }, freeCookie, 'name="platform"');
+    }
+
+    const [connected] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM stores WHERE user_id = ${freeUser.id}
+    `;
+    check(
+      `a free plan connects at most ${FREE_STORE_LIMIT} stores`,
+      Number(connected.c) === FREE_STORE_LIMIT,
+      `${connected.c} connected`
+    );
+
+    const storesHtml = await (await fetch(`${BASE}/dashboard/stores`, { headers: { cookie: freeCookie } })).text();
+    check("free plan is told its store allowance rather than a $0 bill",
+      storesHtml.includes("at no charge") && !storesHtml.includes("$0 per connected store"));
+
+    await sql`DELETE FROM users WHERE id = ${freeUser.id}`;
   }
 
   // ------------------------------------------------------------- pricing --

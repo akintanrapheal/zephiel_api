@@ -4,6 +4,7 @@ import { sql } from "@/lib/db";
 import { getStores, getStoreActivity } from "@/server/account";
 import { topUpIntraday } from "@/server/usage-maintenance";
 import StoreManager from "@/components/app/StoreManager";
+import { storeLimitFor } from "@/lib/plans";
 import StoreActivityChart from "@/components/app/StoreActivityChart";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export default async function StoresPage() {
 
   const active = sub[0];
   const pricePerStore = active?.unit ? Number(active.price) : 0;
+  const storeLimit = storeLimitFor(Number(active?.price ?? 0));
 
   const series = stores.map((s) => ({
     id: s.id,
@@ -63,7 +65,8 @@ export default async function StoresPage() {
       <StoreManager
         stores={stores}
         canAdd={Boolean(active)}
-        pricePerStore={pricePerStore || 50}
+        pricePerStore={pricePerStore}
+        storeLimit={storeLimit}
       />
     </div>
   );

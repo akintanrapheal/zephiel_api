@@ -52,3 +52,18 @@ export function intervalSuffix(interval: BillingInterval, unit?: string | null) 
 export function formatPrice(amount: number) {
   return `$${amount.toLocaleString()}`;
 }
+
+/**
+ * How many storefronts a plan may connect.
+ *
+ * Free plans get a small allowance; paid Multistore plans are billed per
+ * store, so the ceiling there is a sanity limit rather than a product one.
+ * This was previously a flat 100 for everyone, which meant a free account
+ * could connect a hundred stores and accrue a hundred billable units.
+ */
+export const FREE_PLAN_STORE_LIMIT = 3;
+export const PAID_PLAN_STORE_LIMIT = 100;
+
+export function storeLimitFor(planPrice: number) {
+  return planPrice === 0 ? FREE_PLAN_STORE_LIMIT : PAID_PLAN_STORE_LIMIT;
+}

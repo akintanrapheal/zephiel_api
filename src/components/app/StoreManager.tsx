@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { addStore, removeStore, rotateStoreKey, setStoreStatus, type StoreState } from "@/server/actions/stores";
@@ -18,11 +19,15 @@ export default function StoreManager({
   stores,
   canAdd,
   pricePerStore,
+  storeLimit,
 }: {
   stores: Store[];
   canAdd: boolean;
+  /** 0 on a free plan, where stores are included rather than billed. */
   pricePerStore: number;
+  storeLimit: number;
 }) {
+  const atLimit = stores.length >= storeLimit;
   const [addState, addAction] = useActionState<StoreState, FormData>(addStore, null);
   const [rotateState, rotateAction] = useActionState<StoreState, FormData>(rotateStoreKey, null);
 
@@ -44,13 +49,36 @@ export default function StoreManager({
         <h2 className="text-sm font-semibold tracking-tight text-ink">Connect a store</h2>
         <p className="mt-1 text-xs text-muted">
           Each store gets its own key, so you can attribute traffic and revoke one without touching
-          the others. Billing is ${pricePerStore} per connected store, per month — adding one takes
-          your total from ${(stores.length * pricePerStore).toLocaleString()} to{" "}
-          <span className="font-semibold text-ink">
-            ${((stores.length + 1) * pricePerStore).toLocaleString()}/mo
-          </span>
-          , applied at your next renewal.
+          the others.{" "}
+          {pricePerStore > 0 ? (
+            <>
+              Billing is ${pricePerStore} per connected store, per month — adding one takes your
+              total from ${(stores.length * pricePerStore).toLocaleString()} to{" "}
+              <span className="font-semibold text-ink">
+                ${((stores.length + 1) * pricePerStore).toLocaleString()}/mo
+              </span>
+              , applied at your next renewal.
+            </>
+          ) : (
+            <>
+              Your plan includes{" "}
+              <span className="font-semibold text-ink">
+                {storeLimit} {storeLimit === 1 ? "store" : "stores"}
+              </span>{" "}
+              at no charge — {stores.length} connected so far.
+            </>
+          )}
         </p>
+
+        {atLimit && (
+          <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 text-xs text-ink">
+            You have connected all {storeLimit} stores your plan allows.{" "}
+            <Link href="/dashboard/billing" className="font-semibold text-brand-600 hover:underline">
+              Upgrade
+            </Link>{" "}
+            to add more.
+          </p>
+        )}
 
         <form action={addAction} className="mt-4 space-y-3">
           <div className="grid gap-3 sm:grid-cols-[1fr_200px]">

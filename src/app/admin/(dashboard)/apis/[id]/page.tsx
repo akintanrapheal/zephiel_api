@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
 import { getApiById, getCategories } from "@/server/catalog";
-import { deleteApi, deletePlan, deleteEndpoint } from "@/server/actions/admin";
+import { deleteApi, deleteEndpoint } from "@/server/actions/admin";
+import DeletePlanButton from "@/components/admin/DeletePlanButton";
 import ApiForm from "@/components/admin/ApiForm";
 import PlanForm from "@/components/admin/PlanForm";
 import EndpointForm from "@/components/admin/EndpointForm";
@@ -89,10 +90,7 @@ export default async function EditApiPage({
 
               <div className="mt-4 border-t border-line pt-4">
                 <PlanForm apiId={api.id!} plan={p} />
-                <form action={deletePlan} className="mt-3">
-                  <input type="hidden" name="id" value={p.id} />
-                  <button className="text-xs font-medium text-rose-600 hover:underline">Delete plan</button>
-                </form>
+                <DeletePlanButton planId={p.id!} />
               </div>
             </details>
           ))}

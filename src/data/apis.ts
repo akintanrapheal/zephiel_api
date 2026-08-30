@@ -938,10 +938,12 @@ const coreApis: Api[] = [
       {
         name: "Sandbox",
         price: 0,
-        requests: "1 store, 1,000 calls/mo",
+        // Store allowance here must match FREE_PLAN_STORE_LIMIT in lib/plans.ts,
+        // which is what addStore actually enforces.
+        requests: "3 stores, 9,000 calls/mo",
         rateLimit: "5 req/min",
         features: [
-          "1 connected storefront",
+          "Up to 3 connected storefronts",
           "Read-only catalog and orders",
           "Test-mode webhooks",
           "Community support",

@@ -284,6 +284,27 @@ export async function savePlan(_prev: FormState, formData: FormData): Promise<Fo
         features = ${features}, popular = ${popular}, quota = ${p.quota}
       WHERE id = ${id}
     `;
+
+    // subscriptions.quota is a copy taken when the customer subscribed, and it
+    // is what the gateway meters against and the dashboard displays. Without
+    // this, raising a plan's allowance changed nothing for anyone already on
+    // it — the console appeared to save and the customer still saw the old
+    // number.
+    const moved = await sql<{ id: string }[]>`
+      UPDATE subscriptions SET quota = ${p.quota}, updated_at = now()
+      WHERE plan_id = ${id} AND status IN ('active', 'pending') AND quota <> ${p.quota}
+      RETURNING id
+    `;
+
+    revalidateCatalog();
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/billing");
+    return {
+      ok:
+        moved.length === 0
+          ? "Plan saved."
+          : `Plan saved. ${moved.length} active ${moved.length === 1 ? "subscription" : "subscriptions"} moved to the new allowance.`,
+    };
   } else {
     if (!apiId) return { error: "Missing API." };
     const [{ next }] = await sql<{ next: number }[]>`
@@ -300,12 +321,34 @@ export async function savePlan(_prev: FormState, formData: FormData): Promise<Fo
   return { ok: "Plan saved." };
 }
 
-export async function deletePlan(formData: FormData) {
+/**
+ * Remove a plan, unless someone is on it.
+ *
+ * subscriptions.plan_id cascades, so an unguarded delete here removed every
+ * subscriber along with their stores and per-store keys — the same cascade
+ * that made the catalogue reseed destructive.
+ */
+export async function deletePlan(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  if (!id) return;
+  if (!id) return { error: "Missing plan." };
+
+  const [{ count }] = await sql<{ count: string }[]>`
+    SELECT COUNT(*)::text AS count FROM subscriptions
+    WHERE plan_id = ${id} AND status IN ('active', 'pending')
+  `;
+
+  if (Number(count) > 0) {
+    return {
+      error:
+        `${count} ${Number(count) === 1 ? "customer is" : "customers are"} on this plan. ` +
+        `Move them to another plan first — deleting it would delete their subscription, stores, and keys.`,
+    };
+  }
+
   await sql`DELETE FROM plans WHERE id = ${id}`;
   revalidateCatalog();
+  return { ok: "Plan deleted." };
 }
 
 // ---------------------------------------------------------------- endpoints --
