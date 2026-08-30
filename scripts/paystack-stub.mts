@@ -20,6 +20,16 @@ createServer(async (req, res) => {
     res.end(JSON.stringify(obj));
   };
 
+  // Key probe: the admin console verifies a key before storing it.
+  if (req.url?.startsWith("/transaction/totals")) {
+    const auth = req.headers.authorization ?? "";
+    if (!/^Bearer sk_(test|live)_[A-Za-z0-9]{10,}$/.test(auth)) {
+      res.writeHead(401, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ status: false, message: "Invalid key" }));
+    }
+    return json(200, { status: true, data: { total_volume: 0 } });
+  }
+
   if (req.url?.startsWith("/transaction/initialize")) {
     const { reference, amount, currency } = JSON.parse(body);
     if (seen.has(reference)) return json(400, { status: false, message: "Duplicate Transaction Reference" });
