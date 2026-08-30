@@ -20,7 +20,7 @@ export async function getEmailConfig(): Promise<EmailConfig> {
 
   return {
     apiKey: fromSettings ?? fromEnv ?? null,
-    from: settings.email_from ?? process.env.EMAIL_FROM ?? "Zephiel API <onboarding@resend.dev>",
+    from: settings.email_from ?? process.env.EMAIL_FROM ?? "Zephiel API <info@zephiel.com>",
     source: fromSettings ? "settings" : fromEnv ? "env" : "none",
   };
 }

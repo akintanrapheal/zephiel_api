@@ -185,8 +185,8 @@ export default function GdprPage() {
       <Section id="rights" title="Your rights">
         <p>
           If you are in the EEA or UK you have the following rights. Exercise any of them by emailing{" "}
-          <a href="mailto:privacy@zephiel.com" className="font-medium text-brand-600 hover:underline">
-            privacy@zephiel.com
+          <a href="mailto:info@zephiel.com" className="font-medium text-brand-600 hover:underline">
+            info@zephiel.com
           </a>{" "}
           — we respond within 30 days.
         </p>
@@ -301,8 +301,8 @@ export default function GdprPage() {
       <Section id="dpa" title="Data processing agreement">
         <p>
           If you need a signed DPA incorporating the Standard Contractual Clauses, request one at{" "}
-          <a href="mailto:privacy@zephiel.com" className="font-medium text-brand-600 hover:underline">
-            privacy@zephiel.com
+          <a href="mailto:info@zephiel.com" className="font-medium text-brand-600 hover:underline">
+            info@zephiel.com
           </a>{" "}
           and we will return a countersigned copy.
         </p>
@@ -315,10 +315,10 @@ export default function GdprPage() {
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <a
-            href="mailto:privacy@zephiel.com"
+            href="mailto:info@zephiel.com"
             className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
           >
-            privacy@zephiel.com
+            info@zephiel.com
           </a>
           <Link
             href="/legal/terms"

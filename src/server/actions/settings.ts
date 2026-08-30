@@ -108,7 +108,7 @@ const emailSchema = z.object({
     .max(120)
     .refine(
       (v) => v === "" || /^[^<>@]*<[^@\s]+@[^@\s]+\.[a-z]{2,}>$|^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v),
-      'Use an address, optionally with a name: Zephiel API <hello@yourdomain.com>'
+      'Use an address, optionally with a name: Zephiel API <info@zephiel.com>'
     ),
 });
 
