@@ -354,3 +354,15 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS authorization_url text;
 
 CREATE INDEX IF NOT EXISTS payments_pending_idx
   ON payments(user_id, subscription_id, status) WHERE status = 'pending';
+
+-- Fixed-window counters for endpoints that are not the metered gateway.
+-- Kept in the database rather than in memory because serverless instances do
+-- not share state: an in-process counter would reset on every cold start and
+-- be enforced per instance rather than per account.
+CREATE TABLE IF NOT EXISTS rate_limits (
+  bucket       text PRIMARY KEY,
+  window_start timestamptz NOT NULL DEFAULT now(),
+  count        integer NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS rate_limits_window_idx ON rate_limits(window_start);

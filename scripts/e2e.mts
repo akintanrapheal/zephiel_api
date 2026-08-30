@@ -932,6 +932,70 @@ try {
     check("webhook accepts a correctly signed payload", signed.status === 200, `status ${signed.status}`);
   }
 
+  // ------------------------------------------------- provisioning limits --
+  console.log("\nStore provisioning API");
+
+  {
+    await sql`DELETE FROM rate_limits WHERE bucket LIKE 'provision:%'`;
+
+    const [msApi3] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
+    const [paidMs] = await sql<{ id: string; quota: number }[]>`
+      SELECT id, quota::int FROM plans WHERE api_id = ${msApi3.id} AND price > 0
+        AND name <> 'Enterprise' LIMIT 1
+    `;
+    const provEmail = `e2e_prov_${Date.now()}@zephiel.test`;
+    const [provUser] = await sql<{ id: string }[]>`
+      INSERT INTO users (email, name, password_hash, role)
+      VALUES (${provEmail}, 'Prov', 'scrypt:x:y', 'customer') RETURNING id
+    `;
+    await sql`
+      INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units, current_period_end)
+      VALUES (${provUser.id}, ${msApi3.id}, ${paidMs.id}, 'active', ${paidMs.quota}, 1,
+              now() + interval '30 days')
+    `;
+    const provSecret = `zk_live_${randomBytes(20).toString("hex")}`;
+    await sql`
+      INSERT INTO api_keys (user_id, label, scope, key_prefix, key_hash)
+      VALUES (${provUser.id}, 'Account', 'All APIs', ${provSecret.slice(0, 11)},
+              ${createHash("sha256").update(provSecret).digest("hex")})
+    `;
+
+    const provision = (name: string) =>
+      fetch(`${BASE}/api/integrations/provision-store`, {
+        method: "POST",
+        headers: { "x-account-key": provSecret, "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+
+    const first = await provision("Provisioned One");
+    check("a valid account key can provision a store", first.status === 200, `status ${first.status}`);
+
+    // Re-provisioning must rotate rather than stack live credentials.
+    await provision("Provisioned One");
+    const [keyCount] = await sql<{ live: string; total: string }[]>`
+      SELECT COUNT(*) FILTER (WHERE revoked_at IS NULL)::text AS live, COUNT(*)::text AS total
+      FROM api_keys WHERE store_id = (
+        SELECT id FROM stores WHERE user_id = ${provUser.id} AND name = 'Provisioned One' LIMIT 1
+      )
+    `;
+    check("re-provisioning revokes the store's previous key", keyCount.live === "1",
+      `${keyCount.live} live of ${keyCount.total}`);
+
+    // Concurrency is the case the limiter exists for: a check-then-increment
+    // implementation lets more than the limit through here.
+    await sql`DELETE FROM rate_limits WHERE bucket LIKE 'provision:%'`;
+    const burst = await Promise.all(
+      Array.from({ length: 20 }, (_, i) => provision(`Burst ${i}`))
+    );
+    const allowed = burst.filter((r) => r.status !== 429).length;
+    check("a concurrent burst is capped at the per-minute limit", allowed <= 10, `${allowed} allowed`);
+    check("a throttled provisioning call says when to retry",
+      burst.some((r) => r.status === 429 && r.headers.get("retry-after") !== null));
+
+    await sql`DELETE FROM users WHERE id = ${provUser.id}`;
+    await sql`DELETE FROM rate_limits WHERE bucket LIKE 'provision:%'`;
+  }
+
   // ------------------------------------------------------------ checkout --
   // Only runs against a Paystack stub (PAYSTACK_BASE_URL), so the suite still
   // passes with no payment provider configured.

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { hashApiKey, generateApiKey } from "@/lib/auth";
 import { storeLimitFor } from "@/lib/plans";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -11,19 +12,50 @@ export const dynamic = "force-dynamic";
  * attributed per store and the key matches on both sides. Re-provisioning an existing store name
  * reuses the store row (no duplicates) but issues a fresh key.
  */
+/** Per account, per minute. Provisioning is a setup step, not hot traffic. */
+const PER_ACCOUNT_PER_MINUTE = 10;
+/** Per source address, for requests that never present a usable key. */
+const PER_ADDRESS_PER_MINUTE = 20;
+
 export async function POST(request: Request) {
   const accountKey =
     request.headers.get("x-account-key") ??
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!accountKey) return fail(401, "missing_key", "Send your account key in the x-account-key header.");
+
+  // Requests that fail authentication are limited by source address, so a
+  // caller with no valid key cannot make the key lookup run without bound.
+  const address =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  if (!accountKey) {
+    const anon = await consumeRateLimit(`provision:addr:${address}`, PER_ADDRESS_PER_MINUTE, 60);
+    if (!anon.allowed) return tooMany(anon.retryAfter);
+    return fail(401, "missing_key", "Send your account key in the x-account-key header.");
+  }
 
   const [key] = await sql<
     { user_id: string; revoked_at: Date | null; store_id: string | null }[]
   >`
     SELECT user_id, revoked_at, store_id FROM api_keys WHERE key_hash = ${hashApiKey(accountKey)} LIMIT 1
   `;
-  if (!key || key.revoked_at) return fail(401, "invalid_key", "That account key is not valid or has been revoked.");
+  if (!key || key.revoked_at) {
+    const bad = await consumeRateLimit(`provision:addr:${address}`, PER_ADDRESS_PER_MINUTE, 60);
+    if (!bad.allowed) return tooMany(bad.retryAfter);
+    return fail(401, "invalid_key", "That account key is not valid or has been revoked.");
+  }
   if (key.store_id) return fail(403, "not_account_key", "Use an account-wide key here, not a per-store key.");
+
+  // Counted per account rather than per address: the limit protects the
+  // account's own store and credential records, and a single customer can
+  // legitimately call from many addresses.
+  const limited = await consumeRateLimit(
+    `provision:user:${key.user_id}`,
+    PER_ACCOUNT_PER_MINUTE,
+    60
+  );
+  if (!limited.allowed) return tooMany(limited.retryAfter);
 
   let payload: { name?: string; domain?: string } = {};
   try { payload = (await request.json()) as { name?: string; domain?: string }; } catch { /* empty body */ }
@@ -101,6 +133,15 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, storeId: store.id, apiKey: apiKey.plaintext });
 }
 
-function fail(status: number, code: string, message: string) {
-  return NextResponse.json({ ok: false, error: { code, message } }, { status });
+function fail(status: number, code: string, message: string, headers?: HeadersInit) {
+  return NextResponse.json({ ok: false, error: { code, message } }, { status, headers });
+}
+
+function tooMany(retryAfter: number) {
+  return fail(
+    429,
+    "rate_limited",
+    `Too many provisioning requests. Retry in ${retryAfter}s.`,
+    { "Retry-After": String(retryAfter) }
+  );
 }
