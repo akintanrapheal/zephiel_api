@@ -98,13 +98,30 @@ export async function processRenewals() {
  * restarting the ramp, and only fills days that have no row yet.
  */
 export async function extendDemoDays() {
-  const subs = await sql<{ user_id: string; api_id: string }[]>`
-    SELECT DISTINCT user_id, api_id FROM subscriptions WHERE demo_traffic = true
+  const subs = await sql<{
+    id: string;
+    user_id: string;
+    api_id: string;
+    quota: number;
+    used: number;
+    days_left: number;
+  }[]>`
+    SELECT id, user_id, api_id, quota, used,
+           GREATEST(1, CEIL(EXTRACT(EPOCH FROM (current_period_end - now())) / 86400))::int AS days_left
+    FROM subscriptions WHERE demo_traffic = true
   `;
 
   let filled = 0;
 
   for (const sub of subs) {
+    // Spread what is left across the days left, so generated traffic cannot
+    // exhaust the allowance before the period ends. Without this the daily fill
+    // used a 7-day average that took no account of the quota at all.
+    const perDayBudget = Math.max(
+      0,
+      Math.floor(Math.max(0, sub.quota - sub.used) / Math.max(1, sub.days_left))
+    );
+
     const recent = await sql<{ store_id: string | null; avg: string; last_day: Date }[]>`
       SELECT store_id, AVG(calls)::bigint::text AS avg, MAX(day) AS last_day
       FROM usage_daily
@@ -126,7 +143,10 @@ export async function extendDemoDays() {
         const weekday = day.getUTCDay();
         const weekend = weekday === 0 || weekday === 6 ? 0.55 : 1;
         const drift = 1 + Math.sin(day.getTime() / 86_400_000) * 0.15;
-        const calls = Math.max(1, Math.round(Number(r.avg) * weekend * drift));
+        const shaped = Math.max(1, Math.round(Number(r.avg) * weekend * drift));
+        // Budget is per subscription; divide it across the stores writing rows.
+        const perStore = Math.max(1, Math.floor(perDayBudget / Math.max(1, recent.length)));
+        const calls = Math.min(shaped, perStore);
 
         await sql`
           INSERT INTO usage_daily (user_id, api_id, store_id, day, calls, errors, avg_latency)
@@ -140,6 +160,9 @@ export async function extendDemoDays() {
       }
     }
   }
+
+  // The rows just written are what the quota bar reports on.
+  await reconcileUsed();
 
   return { filled };
 }
@@ -248,4 +271,59 @@ export async function topUpIntraday(userId: string, apiId: string) {
   `;
 
   return { added: rows.length };
+}
+
+/**
+ * Recompute subscriptions.used from the usage actually recorded in the current
+ * billing period.
+ *
+ * `used` was written independently of the usage tables — the traffic generator
+ * set it to the lifetime call count clamped to quota, and the daily extension
+ * never touched it — so the quota bar and the usage charts were two unrelated
+ * numbers describing the same thing, and disagreed.
+ *
+ * Counted the way the charts count: rolled-up days for finished days, live
+ * events for today, so nothing is double counted at the boundary.
+ */
+export async function reconcileUsed(subscriptionId?: string) {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE subscriptions s SET
+      used = LEAST(s.quota, (
+        COALESCE((
+          SELECT SUM(d.calls) FROM usage_daily d
+          WHERE d.user_id = s.user_id AND d.api_id = s.api_id
+            AND d.day >= (
+              s.current_period_end - CASE WHEN s.billing_interval = 'annual'
+                THEN interval '1 year' ELSE interval '1 month' END
+            )::date
+            AND d.day < CURRENT_DATE
+        ), 0)
+        + COALESCE((
+          SELECT COUNT(*) FROM usage_events e
+          WHERE e.user_id = s.user_id AND e.api_id = s.api_id
+            AND e.created_at >= CURRENT_DATE
+        ), 0)
+      ))::int,
+      updated_at = now()
+    WHERE s.current_period_end IS NOT NULL
+      AND (${subscriptionId ?? null}::uuid IS NULL OR s.id = ${subscriptionId ?? null}::uuid)
+    RETURNING s.id
+  `;
+  return { reconciled: rows.length };
+}
+
+/**
+ * Calls a demo subscription can generate per day without exhausting its
+ * allowance before the period ends.
+ *
+ * Returns null when there is no ceiling to apply.
+ */
+export async function dailyDemoBudget(subscriptionId: string): Promise<number | null> {
+  const [row] = await sql<{ remaining: number; days_left: number }[]>`
+    SELECT GREATEST(0, quota - used)::int AS remaining,
+           GREATEST(1, CEIL(EXTRACT(EPOCH FROM (current_period_end - now())) / 86400))::int AS days_left
+    FROM subscriptions WHERE id = ${subscriptionId} AND current_period_end IS NOT NULL
+  `;
+  if (!row) return null;
+  return Math.max(0, Math.floor(row.remaining / row.days_left));
 }

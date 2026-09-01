@@ -58,7 +58,7 @@ const routes: { path: string; cookie: string; label: string }[] = [
   ...["/dashboard","/dashboard/stores","/dashboard/usage","/dashboard/billing","/dashboard/keys","/dashboard/playground"]
     .map(p => ({ path: p, cookie: cust, label: "customer" })),
   ...["/admin","/admin/apis","/admin/apis/new","/admin/categories","/admin/users","/admin/subscriptions",
-      "/admin/payments","/admin/settings","/admin/notifications", `/admin/users/${aUser.id}`]
+      "/admin/payments","/admin/settings/payments","/admin/settings/email","/admin/settings/platform","/admin/settings/data","/admin/profile","/admin/notifications", `/admin/users/${aUser.id}`]
     .map(p => ({ path: p, cookie: admin, label: "admin" })),
 ];
 

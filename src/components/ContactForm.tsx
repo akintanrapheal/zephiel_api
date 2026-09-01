@@ -34,7 +34,7 @@ export default function ContactForm() {
       className="space-y-5 rounded-2xl border border-line bg-surface p-6 sm:p-8"
     >
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Name" name="name" placeholder="Ada Okoye" autoComplete="name" />
+        <Field label="Name" name="name" placeholder="Jordan Miller" autoComplete="name" />
         <Field label="Work email" name="email" type="email" placeholder="you@company.com" autoComplete="email" />
       </div>
 

@@ -6,6 +6,21 @@ export const metadata: Metadata = {
   description: "Talk to the Zephiel team about pricing, enterprise plans, or listing your API.",
 };
 
+const offices = [
+  {
+    city: "Houston, Texas",
+    role: "Headquarters",
+    lines: ["1200 Smith Street, Suite 1600", "Houston, TX 77002", "United States"],
+    hours: "Mon–Fri, 9:00–18:00 CT",
+  },
+  {
+    city: "Cape Town",
+    role: "Regional office — Africa",
+    lines: ["The Foundry, Cardiff Street", "Green Point, Cape Town 8005", "South Africa"],
+    hours: "Mon–Fri, 9:00–18:00 SAST",
+  },
+];
+
 const channels = [
   { title: "Sales", body: "Volume pricing, enterprise SLAs, and procurement paperwork.", meta: "info@zephiel.com" },
   { title: "Support", body: "Integration questions and incidents. Priority routing on paid plans.", meta: "info@zephiel.com" },
@@ -27,6 +42,21 @@ export default function ContactPage() {
         <ContactForm />
 
         <aside className="space-y-4">
+          {offices.map((o) => (
+            <div key={o.city} className="rounded-2xl border border-line bg-surface p-6">
+              <h2 className="text-[15px] font-semibold tracking-tight text-ink">{o.city}</h2>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-muted">{o.role}</p>
+              <address className="mt-3 text-sm not-italic leading-7 text-muted">
+                {o.lines.map((l) => (
+                  <span key={l} className="block">
+                    {l}
+                  </span>
+                ))}
+              </address>
+              <p className="mt-3 text-xs text-muted">{o.hours}</p>
+            </div>
+          ))}
+
           {channels.map((c) => (
             <div key={c.title} className="rounded-2xl border border-line bg-surface p-5">
               <h2 className="text-sm font-semibold tracking-tight text-ink">{c.title}</h2>

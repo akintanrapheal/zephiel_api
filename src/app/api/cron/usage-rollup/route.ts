@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { rollupFinishedDays, extendDemoDays, processRenewals } from "@/server/usage-maintenance";
+import { rollupFinishedDays, extendDemoDays, processRenewals, reconcileUsed } from "@/server/usage-maintenance";
 import { pruneRateLimits } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -36,8 +36,11 @@ export async function GET(request: Request) {
   // Rate-limit buckets are per account and per address, so the table would
   // otherwise grow one row per caller and never shrink.
   const prunedLimits = await pruneRateLimits();
+  // Last: rolling up moves calls from usage_events into usage_daily, so `used`
+  // is only correct once both sides have settled.
+  const reconciled = await reconcileUsed();
 
-  const result = { ...rollup, ...renewals, ...demo, prunedLimits };
+  const result = { ...rollup, ...renewals, ...demo, ...reconciled, prunedLimits };
   console.log("Usage rollup:", JSON.stringify(result));
   return NextResponse.json({ ok: true, ...result });
 }

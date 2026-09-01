@@ -5,6 +5,7 @@ import { z } from "zod";
 import { sql } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { generateTraffic, clearTraffic } from "@/server/traffic";
+import { reconcileUsed } from "@/server/usage-maintenance";
 import type { FormState } from "./admin";
 
 const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
@@ -145,11 +146,10 @@ export async function generateDemoTraffic(_prev: FormState, formData: FormData):
     totalCalls: parsed.data.total,
   });
 
-  // Keep the quota bar consistent with the history just written.
-  await sql`
-    UPDATE subscriptions SET used = LEAST(${parsed.data.total}, quota), updated_at = now()
-    WHERE id = ${subscriptionId}
-  `;
+  // Derive the quota bar from the history just written, rather than from the
+  // lifetime total. Setting used to every call ever generated made the bar
+  // disagree with the usage chart, which only ever counts a window.
+  await reconcileUsed(subscriptionId);
 
   revalidatePath(`/admin/users/${sub.user_id}`);
   revalidatePath("/dashboard");
@@ -192,4 +192,28 @@ export async function clearDemoTraffic(formData: FormData) {
 
   revalidatePath(`/admin/users/${sub.user_id}`);
   revalidatePath("/dashboard");
+}
+
+/**
+ * Recompute a subscription's quota counter from its recorded usage.
+ *
+ * The daily cron does this, but an operator looking at a bar that disagrees
+ * with the charts should not have to wait a day to correct it.
+ */
+export async function reconcileUsage(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  if (!subscriptionId) return;
+
+  const [sub] = await sql<{ user_id: string }[]>`
+    SELECT user_id FROM subscriptions WHERE id = ${subscriptionId} LIMIT 1
+  `;
+  if (!sub) return;
+
+  await reconcileUsed(subscriptionId);
+
+  revalidatePath(`/admin/users/${sub.user_id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/billing");
 }

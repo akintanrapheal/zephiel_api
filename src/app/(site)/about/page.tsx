@@ -57,6 +57,11 @@ export default function AboutPage() {
         and a single bill, and publish what we measure.
       </p>
       <p className="mt-4 text-[15px] leading-8 text-muted">
+        We are headquartered in Houston, Texas, with a regional office in Cape Town covering customers
+        across Africa &mdash; which is also why the platform settles in more than one currency and
+        publishes latency per region rather than one global median.
+      </p>
+      <p className="mt-4 text-[15px] leading-8 text-muted">
         We have been doing this since 2015 &mdash; long enough to have been wrong in public a few times
         and to have written most of it down. The{" "}
         <Link href="/blog" className="font-medium text-brand-600 hover:underline">

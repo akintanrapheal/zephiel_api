@@ -52,7 +52,7 @@ export async function savePaystackSettings(
   await setSetting("paystack_currency", parsed.data.currency, admin.id);
   await setSetting("usd_to_ngn", String(parsed.data.usdToNgn), admin.id);
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
   revalidatePath("/admin");
   return { ok: secret ? "Key verified with Paystack and saved." : "Settings saved." };
 }
@@ -60,7 +60,7 @@ export async function savePaystackSettings(
 export async function removePaystackKey() {
   await requireAdmin();
   await clearSetting("paystack_secret_key");
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
   revalidatePath("/admin");
 }
 
@@ -99,7 +99,7 @@ export async function savePlatformSettings(
   await setSetting("platform_name", parsed.data.platformName, admin.id);
   await setSetting("support_email", parsed.data.supportEmail, admin.id);
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
   return { ok: "Platform settings saved." };
 }
 
@@ -131,14 +131,14 @@ export async function saveEmailSettings(_prev: FormState, formData: FormData): P
 
   if (parsed.data.from) await setSetting("email_from", parsed.data.from, admin.id);
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
   return { ok: key ? "Email key saved." : "Sender address saved." };
 }
 
 export async function removeEmailKey() {
   await requireAdmin();
   await clearSetting("resend_api_key");
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
 }
 
 /** Send a specimen reminder to the signed-in administrator. */
@@ -273,7 +273,7 @@ export async function runMigrations(_prev: FormState): Promise<FormState> {
   }
 
   const after = await getSchemaStatus();
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
 
   const createdTables = before.missingTables.filter((t) => !after.missingTables.includes(t));
   const createdColumns = before.missingColumns.filter((c) => !after.missingColumns.includes(c));
@@ -347,7 +347,7 @@ export async function saveCompanyDetails(_prev: FormState, formData: FormData): 
   await setSetting("company_address", parsed.data.companyAddress, admin.id);
   await setSetting("company_tax_id", parsed.data.companyTaxId, admin.id);
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
   return { ok: "Invoice details saved." };
 }
 
@@ -397,7 +397,7 @@ export async function changeEmail(_prev: FormState, formData: FormData): Promise
   await sql`DELETE FROM sessions WHERE user_id = ${admin.id}`;
   await createSession(admin.id);
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "layout");
   return { ok: `Sign-in address changed to ${next}. Use it next time you sign in.` };
 }
 

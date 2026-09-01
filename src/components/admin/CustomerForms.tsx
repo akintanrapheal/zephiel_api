@@ -5,6 +5,7 @@ import {
   setJoinDate,
   updateSubscription,
   generateDemoTraffic,
+  reconcileUsage,
   clearDemoTraffic,
   setDemoTraffic,
 } from "@/server/actions/customers";
@@ -143,6 +144,15 @@ export function TrafficForm({
       </form>
 
       <div className="flex flex-wrap items-center gap-3">
+        {/* The daily cron does this too; the button is for when the bar is
+            visibly wrong now and waiting a day is not an answer. */}
+        <form action={reconcileUsage}>
+          <input type="hidden" name="subscriptionId" value={subscriptionId} />
+          <button className="text-xs font-medium text-brand-600 hover:underline">
+            Recalculate quota from usage
+          </button>
+        </form>
+
         <form action={clearDemoTraffic}>
           <input type="hidden" name="subscriptionId" value={subscriptionId} />
           <button className="text-xs font-medium text-rose-600 hover:underline">

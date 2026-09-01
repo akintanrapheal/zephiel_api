@@ -36,6 +36,11 @@ const columns = [
   },
 ];
 
+const offices = [
+  { city: "Houston, Texas", lines: ["Headquarters", "United States"] },
+  { city: "Cape Town", lines: ["Regional office", "South Africa"] },
+];
+
 export default async function Footer() {
   const categories = await getCategories();
 
@@ -68,17 +73,14 @@ export default async function Footer() {
               One key, one bill, one dashboard for every API your product depends on. Ship integrations in
               minutes instead of procurement cycles.
             </p>
-            <div className="mt-5 flex gap-2">
-              {["GitHub", "X", "LinkedIn"].map((s) => (
-                <Link
-                  key={s}
-                  href="#"
-                  className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-elevated hover:text-ink"
-                >
-                  {s}
-                </Link>
+            <address className="mt-5 space-y-3 text-sm not-italic leading-6 text-muted">
+              {offices.map((o) => (
+                <div key={o.city}>
+                  <span className="font-medium text-ink">{o.city}</span>
+                  <span className="block">{o.lines.join(" · ")}</span>
+                </div>
               ))}
-            </div>
+            </address>
           </div>
 
           {columns.map((col) => (

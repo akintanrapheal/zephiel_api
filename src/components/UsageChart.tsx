@@ -11,7 +11,7 @@ const fmt = (n: number) => n.toLocaleString();
  * data-ends, recessive grid, per-bar hover tooltip. No legend — the title names
  * the series.
  */
-export default function UsageChart({ data }: { data: UsagePoint[] }) {
+export default function UsageChart({ data, days }: { data: UsagePoint[]; days?: number }) {
   const [hover, setHover] = useState<number | null>(null);
 
   const max = Math.max(...data.map((d) => d.calls));
@@ -29,7 +29,7 @@ export default function UsageChart({ data }: { data: UsagePoint[] }) {
       <div className="flex items-baseline justify-between">
         <div>
           <h3 className="text-sm font-semibold tracking-tight text-ink">API calls</h3>
-          <p className="mt-0.5 text-xs text-muted">Last 30 days, all APIs</p>
+          <p className="mt-0.5 text-xs text-muted">Last {days ?? data.length} days, all APIs</p>
         </div>
         <p className="text-2xl font-semibold tracking-tight text-ink">
           {fmt(data.reduce((s, d) => s + d.calls, 0))}

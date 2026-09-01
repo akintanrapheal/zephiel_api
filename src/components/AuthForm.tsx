@@ -26,7 +26,7 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
 
         <form action={formAction} className="mt-6 space-y-4">
           {isSignup && (
-            <Field label="Full name" type="text" name="name" placeholder="Ada Okoye" autoComplete="name" />
+            <Field label="Full name" type="text" name="name" placeholder="Jordan Miller" autoComplete="name" />
           )}
           <Field label="Work email" type="email" name="email" placeholder="you@company.com" autoComplete="email" />
           <Field

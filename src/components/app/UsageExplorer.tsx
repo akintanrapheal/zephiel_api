@@ -66,7 +66,7 @@ export default function UsageExplorer({
       </div>
 
       <section className="rounded-2xl border border-line bg-surface p-6">
-        <UsageChart data={shown} />
+        <UsageChart data={shown} days={days} />
       </section>
 
       <section className="rounded-2xl border border-line bg-surface p-6">

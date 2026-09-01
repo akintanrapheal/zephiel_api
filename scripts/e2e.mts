@@ -177,7 +177,10 @@ try {
     "/admin/users",
     "/admin/subscriptions",
     "/admin/payments",
-    "/admin/settings",
+    "/admin/settings/payments",
+    "/admin/settings/email",
+    "/admin/settings/platform",
+    "/admin/settings/data",
     "/admin/notifications",
     "/admin/reviews",
     "/admin/posts",
@@ -232,12 +235,30 @@ try {
 
   // ------------------------------------------------------------ settings --
   const schemaHtml = await (
-    await fetch(`${BASE}/admin/settings`, { headers: { cookie: adminCookie } })
+    await fetch(`${BASE}/admin/settings/data`, { headers: { cookie: adminCookie } })
   ).text();
   check("settings page reports schema status", schemaHtml.includes("Database schema"));
   check("settings offers a catalogue reseed", schemaHtml.includes("Reseed catalogue"));
-  for (const id of ["payments", "email", "platform", "data"]) {
-    check(`settings groups a "${id}" section`, schemaHtml.includes(`id="${id}"`));
+  // Each group is its own route now, sharing one layout with the tab bar.
+  const settingsIndex = await fetch(`${BASE}/admin/settings`, {
+    headers: { cookie: adminCookie }, redirect: "manual",
+  });
+  check("settings opens on a tab rather than one long page",
+    settingsIndex.status === 307 &&
+      (settingsIndex.headers.get("location") ?? "").includes("/admin/settings/payments"),
+    `status ${settingsIndex.status}`);
+
+  for (const [slug, marker] of [
+    ["payments", "Paystack"],
+    ["email", "Send sample"],
+    ["platform", "Site origin"],
+    ["data", "Reseed catalogue"],
+  ]) {
+    const tab = await fetch(`${BASE}/admin/settings/${slug}`, { headers: { cookie: adminCookie } });
+    const html = await tab.text();
+    check(`settings tab /${slug} loads its own panel`,
+      tab.status === 200 && html.includes(marker), `status ${tab.status}`);
+    check(`settings tab /${slug} shows the tab bar`, html.includes("Settings sections"));
   }
 
   // Reseeding used to DELETE every plan and reinsert it. subscriptions.plan_id
@@ -267,7 +288,7 @@ try {
     `;
 
     // Driven through the real admin form, the way an operator triggers it.
-    await submit("/admin/settings", {}, adminCookie, "Reseed catalogue");
+    await submit("/admin/settings/data", {}, adminCookie, "Reseed catalogue");
 
     const [survived] = await sql<{ subs: number; stores: number }[]>`
       SELECT (SELECT COUNT(*) FROM subscriptions WHERE user_id = ${subUser.id})::int AS subs,
@@ -286,14 +307,14 @@ try {
   check("schema reports up to date", schemaHtml.includes("Up to date"), "drift reported");
 
   const settingsHtml = await (
-    await fetch(`${BASE}/admin/settings`, { headers: { cookie: adminCookie } })
+    await fetch(`${BASE}/admin/settings/payments`, { headers: { cookie: adminCookie } })
   ).text();
   check("settings page exposes the Paystack key field", settingsHtml.includes('name="secretKey"'));
   check("secret key field is a password input", /name="secretKey"[^>]*type="password"|type="password"[^>]*name="secretKey"/.test(settingsHtml));
   check("settings page shows the webhook URL", settingsHtml.includes("/api/paystack/webhook"));
 
   // A bogus key must be rejected before anything is stored.
-  const bogusKey = await submit("/admin/settings", {
+  const bogusKey = await submit("/admin/settings/payments", {
     secretKey: "not-a-real-key",
     currency: "NGN",
     usdToNgn: "1550",
@@ -304,7 +325,7 @@ try {
   check("malformed Paystack key is refused", Number(stored.c) === 0, `status ${bogusKey.status}`);
 
   // Non-secret settings still save.
-  await submit("/admin/settings", { currency: "USD", usdToNgn: "1600" }, adminCookie, 'name="secretKey"');
+  await submit("/admin/settings/payments", { currency: "USD", usdToNgn: "1600" }, adminCookie, 'name="secretKey"');
   const [cur] = await sql<{ value: string }[]>`
     SELECT value FROM settings WHERE key = 'paystack_currency' LIMIT 1
   `;
@@ -1228,6 +1249,63 @@ try {
       DELETE FROM subscriptions s USING apis a
       WHERE a.id = s.api_id AND s.user_id = ${user.id} AND a.slug = 'ip-intelligence'
     `;
+  }
+
+  // ------------------------------------------------------- usage & quota --
+  console.log("\nUsage & quota");
+
+  {
+    const [qSub] = await sql<{ id: string; api_id: string; quota: number }[]>`
+      SELECT s.id, s.api_id, s.quota FROM subscriptions s
+      WHERE s.user_id = ${user.id} AND s.current_period_end IS NOT NULL
+      LIMIT 1
+    `;
+
+    if (qSub) {
+      // History either side of the period boundary; only the inside counts.
+      await sql`DELETE FROM usage_daily WHERE user_id = ${user.id} AND api_id = ${qSub.api_id}`;
+      await sql`
+        UPDATE subscriptions SET quota = 5000, used = 4001,
+          current_period_end = now() + interval '20 days'
+        WHERE id = ${qSub.id}
+      `;
+      await sql`
+        INSERT INTO usage_daily (user_id, api_id, day, calls, errors, avg_latency)
+        SELECT ${user.id}, ${qSub.api_id}, d::date, 100, 0, 150
+        FROM generate_series(CURRENT_DATE - 60, CURRENT_DATE - 1, interval '1 day') d
+      `;
+
+      const [expected] = await sql<{ c: number }[]>`
+        SELECT COALESCE(SUM(d.calls), 0)::int AS c
+        FROM usage_daily d, subscriptions s
+        WHERE s.id = ${qSub.id} AND d.user_id = s.user_id AND d.api_id = s.api_id
+          AND d.day >= (s.current_period_end - interval '1 month')::date
+          AND d.day < CURRENT_DATE
+      `;
+
+      await submit(`/admin/users/${user.id}`, { subscriptionId: qSub.id },
+        adminCookie, "Recalculate quota from usage");
+
+      const [reconciled] = await sql<{ used: number; quota: number }[]>`
+        SELECT used, quota FROM subscriptions WHERE id = ${qSub.id}
+      `;
+      check("quota counter is recomputed from recorded usage",
+        reconciled.used === expected.c, `used ${reconciled.used}, period total ${expected.c}`);
+      check("quota counter is not the lifetime total", reconciled.used < 6000);
+      check("quota counter never exceeds the quota", reconciled.used <= reconciled.quota);
+
+      // What is left has to survive the rest of the period.
+      const [pace] = await sql<{ rem: number; days: number }[]>`
+        SELECT (quota - used)::int AS rem,
+               GREATEST(1, CEIL(EXTRACT(EPOCH FROM (current_period_end - now())) / 86400))::int AS days
+        FROM subscriptions WHERE id = ${qSub.id}
+      `;
+      const perDay = Math.floor(pace.rem / pace.days);
+      check("the daily budget spends no more than what remains",
+        perDay * pace.days <= pace.rem, `${perDay}/day x ${pace.days} vs ${pace.rem}`);
+
+      await sql`DELETE FROM usage_daily WHERE user_id = ${user.id} AND api_id = ${qSub.api_id}`;
+    }
   }
 
   // ---------------------------------------------- admin sign-in address ----
