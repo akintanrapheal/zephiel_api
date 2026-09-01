@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getPaystackConfig } from "@/lib/paystack";
 import { getSecretStatus, getSettings, usingDerivedKey } from "@/lib/settings";
 import { appUrl } from "@/lib/app-url";
@@ -5,8 +6,6 @@ import PageHeader, { Card } from "@/components/admin/PageHeader";
 import PaystackSettingsForm from "@/components/admin/PaystackSettingsForm";
 import PlatformSettingsForm from "@/components/admin/PlatformSettingsForm";
 import CopyField from "@/components/admin/CopyField";
-import PasswordForm from "@/components/admin/PasswordForm";
-import EmailForm from "@/components/admin/EmailForm";
 import CompanyForm from "@/components/admin/CompanyForm";
 import SampleEmailForm from "@/components/admin/SampleEmailForm";
 import EmailSettingsForm from "@/components/admin/EmailSettingsForm";
@@ -39,28 +38,45 @@ export default async function AdminSettingsPage() {
   `.catch(() => [{ apis: "0", reviews: "0", posts: "0" }]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <PageHeader
         title="Settings"
-        description="Payment credentials and platform configuration."
+        description="Platform configuration: payments, email, and data."
       />
 
-      <Card title="Database schema" padded>
-        <SchemaCard
-          missingTables={schema.missingTables}
-          missingColumns={schema.missingColumns}
-          upToDate={schema.upToDate}
-        />
-      </Card>
+      <nav aria-label="Settings sections" className="flex flex-wrap gap-2">
+        {[
+          ["payments", "Payments"],
+          ["email", "Email & documents"],
+          ["platform", "Platform"],
+          ["data", "Data & maintenance"],
+        ].map(([id, label]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-muted transition hover:border-brand-300 hover:text-brand-600"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
 
-      <Card title="Catalogue content" padded>
-        <ContentCard
-          apis={Number(content.apis)}
-          reviews={Number(content.reviews)}
-          posts={Number(content.posts)}
-        />
-      </Card>
+      {/* Account settings moved to /admin/profile: this page is platform-wide
+          configuration, and mixing one administrator's own credentials into it
+          made both harder to find. */}
+      <p className="rounded-2xl border border-line bg-surface px-5 py-4 text-sm text-muted">
+        Looking for your own email, password, or picture? Those live on{" "}
+        <Link href="/admin/profile" className="font-medium text-brand-600 hover:underline">
+          your profile
+        </Link>
+        .
+      </p>
 
+      <section id="payments" className="scroll-mt-24 space-y-4">
+        <div className="border-b border-line pb-3">
+          <h2 className="text-sm font-semibold tracking-tight text-ink">Payments</h2>
+          <p className="mt-1 text-sm text-muted">The Paystack credential charges run against, and the business identity printed on invoices.</p>
+        </div>
       <Card title="Paystack" padded>
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <span
@@ -164,6 +180,20 @@ export default async function AdminSettingsPage() {
         </div>
       </Card>
 
+      <Card title="Invoice details" padded>
+        <CompanyForm
+          name={settings.company_name ?? ""}
+          address={settings.company_address ?? ""}
+          taxId={settings.company_tax_id ?? ""}
+        />
+      </Card>
+      </section>
+
+      <section id="email" className="scroll-mt-24 space-y-4">
+        <div className="border-b border-line pb-3">
+          <h2 className="text-sm font-semibold tracking-tight text-ink">Email &amp; documents</h2>
+          <p className="mt-1 text-sm text-muted">Where transactional mail is sent from, and a way to see what customers receive.</p>
+        </div>
       <Card title="Email & reminders" padded>
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <span
@@ -196,23 +226,13 @@ export default async function AdminSettingsPage() {
       <Card title="Preview & test documents" padded>
         <SampleEmailForm adminEmail={admin.email} />
       </Card>
+      </section>
 
-      <Card title="Invoice details" padded>
-        <CompanyForm
-          name={settings.company_name ?? ""}
-          address={settings.company_address ?? ""}
-          taxId={settings.company_tax_id ?? ""}
-        />
-      </Card>
-
-      <Card title="Your sign-in address" padded>
-        <EmailForm email={admin.email} />
-      </Card>
-
-      <Card title="Your password" padded>
-        <PasswordForm email={admin.email} />
-      </Card>
-
+      <section id="platform" className="scroll-mt-24 space-y-4">
+        <div className="border-b border-line pb-3">
+          <h2 className="text-sm font-semibold tracking-tight text-ink">Platform</h2>
+          <p className="mt-1 text-sm text-muted">Public identity and the resolved runtime configuration.</p>
+        </div>
       <Card title="Platform" padded>
         <PlatformSettingsForm
           platformName={settings.platform_name ?? "Zephiel API"}
@@ -238,6 +258,29 @@ export default async function AdminSettingsPage() {
           ))}
         </dl>
       </Card>
+      </section>
+
+      <section id="data" className="scroll-mt-24 space-y-4">
+        <div className="border-b border-line pb-3">
+          <h2 className="text-sm font-semibold tracking-tight text-ink">Data &amp; maintenance</h2>
+          <p className="mt-1 text-sm text-muted">Schema migrations and catalogue content. Reseeding replaces catalogue content and leaves customer accounts, subscriptions, and keys untouched.</p>
+        </div>
+      <Card title="Database schema" padded>
+        <SchemaCard
+          missingTables={schema.missingTables}
+          missingColumns={schema.missingColumns}
+          upToDate={schema.upToDate}
+        />
+      </Card>
+
+      <Card title="Catalogue content" padded>
+        <ContentCard
+          apis={Number(content.apis)}
+          reviews={Number(content.reviews)}
+          posts={Number(content.posts)}
+        />
+      </Card>
+      </section>
     </div>
   );
 }

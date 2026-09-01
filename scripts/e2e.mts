@@ -236,6 +236,9 @@ try {
   ).text();
   check("settings page reports schema status", schemaHtml.includes("Database schema"));
   check("settings offers a catalogue reseed", schemaHtml.includes("Reseed catalogue"));
+  for (const id of ["payments", "email", "platform", "data"]) {
+    check(`settings groups a "${id}" section`, schemaHtml.includes(`id="${id}"`));
+  }
 
   // Reseeding used to DELETE every plan and reinsert it. subscriptions.plan_id
   // cascades, so each reseed silently wiped every customer's subscription,
@@ -358,7 +361,8 @@ try {
   const [msPlan] = await sql<{ id: string; api_id: string; quota: number }[]>`
     SELECT p.id, p.api_id, p.quota FROM plans p
     JOIN apis a ON a.id = p.api_id
-    WHERE a.slug = 'multistore' AND p.price = 0 LIMIT 1
+    WHERE a.slug = 'multistore' AND p.price = 0 AND p.name <> 'Enterprise'
+    ORDER BY p.sort_order LIMIT 1
   `;
   await sql`
     INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units, current_period_end)
@@ -816,10 +820,14 @@ try {
   console.log("\nSubscription & gateway");
 
   // Subscribe the test user to a free plan on the seeded Multistore API.
+  // Two plans there are priced 0 — Sandbox and Enterprise — and Enterprise is
+  // deliberately not subscribable, so an unordered LIMIT 1 picked a plan with
+  // no form roughly half the time.
   const [freePlan] = await sql<{ id: string; api_id: string; quota: number }[]>`
     SELECT p.id, p.api_id, p.quota FROM plans p
     JOIN apis a ON a.id = p.api_id
-    WHERE a.slug = 'multistore' AND p.price = 0
+    WHERE a.slug = 'multistore' AND p.price = 0 AND p.name <> 'Enterprise'
+    ORDER BY p.sort_order
     LIMIT 1
   `;
 
@@ -1225,10 +1233,17 @@ try {
   // ---------------------------------------------- admin sign-in address ----
   console.log("\nAdmin sign-in address");
 
-  check("settings page exposes the sign-in address field", settingsHtml.includes('name="email"'));
+  const adminProfileHtml = await (
+    await fetch(`${BASE}/admin/profile`, { headers: { cookie: adminCookie } })
+  ).text();
+  check("admin profile exposes the sign-in address field", adminProfileHtml.includes('name="email"'));
+  check("admin profile exposes a password change", adminProfileHtml.includes('name="confirm"'));
+  check("settings no longer mixes in personal account fields",
+    !settingsHtml.includes("Your password"));
+  check("settings points at the profile page", settingsHtml.includes("/admin/profile"));
 
   // The email is a login credential, so a wrong password must not move it.
-  await submit("/admin/settings", {
+  await submit("/admin/profile", {
     email: "hijacked@example.com",
     current: "definitely-not-the-password",
   }, adminCookie, 'name="email"');
@@ -1242,7 +1257,7 @@ try {
     SELECT email FROM users WHERE role = 'customer' ORDER BY created_at LIMIT 1
   `;
   if (otherUser) {
-    await submit("/admin/settings", {
+    await submit("/admin/profile", {
       email: otherUser.email,
       current: adminPass,
     }, adminCookie, 'name="email"');
@@ -1254,7 +1269,7 @@ try {
 
   // The real change, and proof the new address is what signs in afterwards.
   const moved = "admin-moved@zephiel.com";
-  await submit("/admin/settings", { email: moved, current: adminPass }, adminCookie, 'name="email"');
+  await submit("/admin/profile", { email: moved, current: adminPass }, adminCookie, 'name="email"');
   const [after] = await sql<{ c: string }[]>`
     SELECT COUNT(*)::text AS c FROM users WHERE email = ${moved} AND role = 'admin'
   `;

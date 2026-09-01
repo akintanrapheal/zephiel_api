@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { signOut } from "@/server/actions/auth";
+import Avatar from "@/components/app/Avatar";
+import { sql } from "@/lib/db";
 import Sidebar from "@/components/admin/Sidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { getAdminNavCounts } from "@/server/admin";
@@ -22,10 +24,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect("/admin/login?error=session");
   if (user.role !== "admin") redirect("/admin/login?error=forbidden");
 
-  const [counts, schema] = await Promise.all([
+  const [counts, schema, profile] = await Promise.all([
     getAdminNavCounts().catch(() => ({}) as Record<string, number>),
     getSchemaStatus().catch(() => ({ missingTables: [], missingColumns: [], upToDate: true })),
+    // Tolerant: the column arrives with a migration, and the console has to
+    // stay reachable when the schema is behind — that is where migrations run.
+    sql<{ avatar_updated_at: Date | null }[]>`
+      SELECT avatar_updated_at FROM users WHERE id = ${user.id} LIMIT 1
+    `.catch(() => [] as { avatar_updated_at: Date | null }[]),
   ]);
+
+  const avatarUpdatedAt = profile[0]?.avatar_updated_at ?? null;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -56,12 +65,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             >
               View site
             </Link>
-            <div className="hidden items-center gap-2 rounded-lg border border-line py-1 pl-1 pr-3 md:flex">
-              <span className="grid h-6 w-6 place-items-center rounded-md bg-brand-600 text-[10px] font-bold uppercase text-white">
-                {user.email.slice(0, 1)}
+            <Link
+              href="/admin/profile"
+              title="Your profile"
+              className="flex items-center gap-2 rounded-lg border border-line py-1 pl-1 pr-1 transition hover:border-brand-300 md:pr-3"
+            >
+              <Avatar
+                userId={user.id}
+                name={user.name}
+                email={user.email}
+                updatedAt={avatarUpdatedAt}
+                size={24}
+                className="rounded-md"
+              />
+              <span className="hidden max-w-[160px] truncate text-xs font-medium text-ink md:block">
+                {user.email}
               </span>
-              <span className="max-w-[160px] truncate text-xs font-medium text-ink">{user.email}</span>
-            </div>
+            </Link>
             <form action={signOut}>
               <button className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-muted transition hover:text-ink">
                 Sign out
