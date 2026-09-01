@@ -8,6 +8,7 @@
  * action-reference fields Next.js renders for progressive enhancement.
  */
 import { createHash, createHmac, randomBytes } from "node:crypto";
+import sharp from "sharp";
 import postgres from "postgres";
 import { loadEnv } from "./env.mts";
 import { FREE_PLAN_STORE_LIMIT as FREE_STORE_LIMIT } from "../src/lib/plans.ts";
@@ -1266,6 +1267,74 @@ try {
   check("the new address signs in", (newAddress.headers.get("set-cookie") ?? "").includes("session"));
 
   await sql`UPDATE users SET email = ${adminEmail} WHERE email = ${moved}`;
+
+  // -------------------------------------------------- profile & invoices --
+  console.log("\nProfile & invoices");
+
+  {
+    const profile = await (await fetch(`${BASE}/dashboard/profile`, { headers: { cookie } })).text();
+    check("profile page offers an email change", profile.includes('name="email"'));
+    check("profile page offers a password change", profile.includes('name="confirm"'));
+    check("profile page accepts an image upload",
+      profile.includes('type="file"') && profile.includes('accept="image/'));
+
+    // A phone photo: large, landscape, and not square.
+    const photo = await sharp({
+      create: { width: 900, height: 600, channels: 3, background: { r: 30, g: 90, b: 200 } },
+    }).jpeg().toBuffer();
+
+    const upFields = await actionFields("/dashboard/profile", 'name="avatar"', cookie);
+    const upBody = new FormData();
+    for (const [k, v] of Object.entries(upFields)) upBody.append(k, v);
+    upBody.set("avatar", new File([new Uint8Array(photo)], "photo.jpg", { type: "image/jpeg" }));
+    await fetch(`${BASE}/dashboard/profile`, {
+      method: "POST", body: upBody, headers: { cookie }, redirect: "manual",
+    });
+
+    const [stored] = await sql<{ len: number; type: string | null }[]>`
+      SELECT length(avatar) AS len, avatar_type AS type FROM users WHERE id = ${user.id}
+    `;
+    check("uploaded photo is stored", (stored?.len ?? 0) > 0);
+    check("photo is re-encoded to webp", stored?.type === "image/webp");
+    check("photo is shrunk, not stored raw", (stored?.len ?? Infinity) < photo.length,
+      `${stored?.len} vs ${photo.length} bytes`);
+
+    const served = await fetch(`${BASE}/api/avatar/${user.id}`);
+    check("avatar is served as an image",
+      served.status === 200 && served.headers.get("content-type") === "image/webp");
+
+    // A file that is not an image must be refused rather than crashing.
+    const badFields = await actionFields("/dashboard/profile", 'name="avatar"', cookie);
+    const badBody = new FormData();
+    for (const [k, v] of Object.entries(badFields)) badBody.append(k, v);
+    badBody.set("avatar", new File([new Uint8Array(Buffer.from("nope"))], "x.jpg", { type: "image/jpeg" }));
+    const badUpload = await fetch(`${BASE}/dashboard/profile`, {
+      method: "POST", body: badBody, headers: { cookie },
+    });
+    check("a non-image upload is refused without erroring", badUpload.status === 200);
+
+    // An invoice belonging to someone else must not be readable.
+    const [other] = await sql<{ id: string }[]>`
+      SELECT id FROM users WHERE id <> ${user.id} AND role = 'customer' LIMIT 1
+    `;
+    if (other) {
+      const ref = `zph_e2e_inv_${Date.now()}`;
+      const number = `ZPH-E2E-${Date.now().toString().slice(-6)}`;
+      await sql`
+        INSERT INTO payments (user_id, reference, amount, currency, status, paid_at, invoice_number)
+        VALUES (${other.id}, ${ref}, 100, 'NGN', 'success', now(), ${number})
+      `;
+      const stolen = await fetch(`${BASE}/dashboard/billing/${number}`, {
+        headers: { cookie }, redirect: "manual",
+      });
+      check("another account's invoice is not readable", stolen.status === 404, `status ${stolen.status}`);
+      await sql`DELETE FROM payments WHERE reference = ${ref}`;
+    }
+
+    const anonPreview = await fetch(`${BASE}/admin/settings/preview/receipt`, { redirect: "manual" });
+    check("document preview refuses anonymous access", anonPreview.status === 404,
+      `status ${anonPreview.status}`);
+  }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
   process.exitCode = failed === 0 ? 0 : 1;

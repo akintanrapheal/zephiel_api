@@ -11,6 +11,7 @@ const links = [
   { href: "/dashboard/billing", label: "Billing" },
   { href: "/dashboard/keys", label: "API keys" },
   { href: "/dashboard/playground", label: "Playground" },
+  { href: "/dashboard/profile", label: "Profile" },
 ];
 
 export default function AppNav() {

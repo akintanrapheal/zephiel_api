@@ -7,6 +7,8 @@ import PlatformSettingsForm from "@/components/admin/PlatformSettingsForm";
 import CopyField from "@/components/admin/CopyField";
 import PasswordForm from "@/components/admin/PasswordForm";
 import EmailForm from "@/components/admin/EmailForm";
+import CompanyForm from "@/components/admin/CompanyForm";
+import SampleEmailForm from "@/components/admin/SampleEmailForm";
 import EmailSettingsForm from "@/components/admin/EmailSettingsForm";
 import { getEmailConfig } from "@/lib/email";
 import { REMINDER_DAYS } from "@/server/notifications";
@@ -188,6 +190,18 @@ export default async function AdminSettingsPage() {
           from={email.from}
           hasStoredKey={email.source === "settings"}
           reminderDays={REMINDER_DAYS}
+        />
+      </Card>
+
+      <Card title="Preview & test documents" padded>
+        <SampleEmailForm adminEmail={admin.email} />
+      </Card>
+
+      <Card title="Invoice details" padded>
+        <CompanyForm
+          name={settings.company_name ?? ""}
+          address={settings.company_address ?? ""}
+          taxId={settings.company_tax_id ?? ""}
         />
       </Card>
 

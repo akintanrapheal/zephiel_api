@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { sql } from "@/lib/db";
+import Avatar from "@/components/app/Avatar";
 import { signOut } from "@/server/actions/auth";
 import ThemeToggle from "@/components/ThemeToggle";
 import AppNav from "@/components/app/AppNav";
@@ -21,7 +23,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getCurrentUser();
   if (!user) redirect("/signin?next=/dashboard");
 
-  const initials = (user.name || user.email).slice(0, 1).toUpperCase();
+  // One lookup by primary key; the header renders on every dashboard page.
+  const [profile] = await sql<{ avatar_updated_at: Date | null }[]>`
+    SELECT avatar_updated_at FROM users WHERE id = ${user.id} LIMIT 1
+  `;
+  const avatarUpdatedAt = profile?.avatar_updated_at ?? null;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -60,13 +66,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Admin
               </Link>
             )}
-            <span
-              aria-hidden
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white"
-              title={user.email}
-            >
-              {initials}
-            </span>
+            <Link href="/dashboard/profile" title={`${user.email} — edit profile`}>
+              <Avatar
+                userId={user.id}
+                name={user.name}
+                email={user.email}
+                updatedAt={avatarUpdatedAt}
+                size={32}
+                className="text-xs"
+              />
+            </Link>
             <form action={signOut}>
               <button className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-muted transition hover:text-ink">
                 Sign out

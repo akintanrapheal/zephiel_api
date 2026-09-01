@@ -3,6 +3,7 @@ import type { JSONValue } from "postgres";
 import { sql } from "@/lib/db";
 import { isBillingInterval, periodEndFor } from "@/lib/plans";
 import { verifyTransaction } from "@/lib/paystack";
+import { ensureInvoiceNumber, sendReceiptEmail } from "@/server/invoices";
 
 export type ActivationResult =
   | { ok: true; apiSlug: string | null; alreadyProcessed: boolean }
@@ -83,14 +84,18 @@ export async function activateFromReference(reference: string): Promise<Activati
     `;
     if (claimed.length === 0) return;
 
+    // The period is stored on the payment so the receipt states what was
+    // bought, and keeps saying so after the subscription renews past it.
     await tx`
       UPDATE payments SET
-        status   = 'success',
-        amount   = ${verified.amount / 100},
-        currency = ${verified.currency},
-        channel  = ${verified.channel},
-        paid_at  = ${verified.paidAt ?? new Date()},
-        raw      = ${tx.json(verified.raw as JSONValue)}
+        status       = 'success',
+        amount       = ${verified.amount / 100},
+        currency     = ${verified.currency},
+        channel      = ${verified.channel},
+        paid_at      = ${verified.paidAt ?? new Date()},
+        period_start = now(),
+        period_end   = ${periodEnd},
+        raw          = ${tx.json(verified.raw as JSONValue)}
       WHERE id = ${payment.id}
     `;
 
@@ -118,6 +123,20 @@ export async function activateFromReference(reference: string): Promise<Activati
       }
     }
   });
+
+  // Outside the transaction: the receipt is a side effect, and a mail provider
+  // being slow or down must not roll back a payment that has been taken.
+  // sendReceiptEmail claims receipt_sent_at itself, so the callback and the
+  // webhook cannot both send one.
+  try {
+    await ensureInvoiceNumber(payment.id);
+    const receipt = await sendReceiptEmail(reference);
+    if (!receipt.sent && receipt.reason !== "Already sent, or payment is not successful.") {
+      console.warn(`Receipt not sent for ${reference}: ${receipt.reason}`);
+    }
+  } catch (err) {
+    console.error("Receipt send failed:", reference, err);
+  }
 
   return {
     ok: true,

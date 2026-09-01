@@ -7,6 +7,8 @@ import { sql } from "@/lib/db";
 import { clearSetting, setSetting } from "@/lib/settings";
 import { getPaystackConfig, testSecretKey } from "@/lib/paystack";
 import { getEmailConfig, sendEmail, emailShell } from "@/lib/email";
+import { sampleInvoiceDocument } from "@/server/invoices";
+import { renderInvoiceHtml, renderInvoiceText } from "@/lib/invoice";
 import { sweepRenewalReminders } from "@/server/notifications";
 import { applySchema, getSchemaStatus } from "@/server/schema-status";
 import { seedCatalogue } from "@/server/catalog-seed";
@@ -140,6 +142,64 @@ export async function removeEmailKey() {
 }
 
 /** Send a specimen reminder to the signed-in administrator. */
+const sampleSchema = z.object({
+  to: z.string().trim().toLowerCase().email("Enter the address to send the sample to."),
+  kind: z.enum(["receipt", "invoice", "reminder"]),
+});
+
+/**
+ * Send a sample of a real template to any address.
+ *
+ * Rendered with the same functions that produce the live documents, so what
+ * arrives is what a customer receives — not a separate preview that can drift
+ * from the thing it is previewing.
+ */
+export async function sendSampleEmail(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+
+  const config = await getEmailConfig();
+  if (!config.apiKey) return { error: "No email provider configured yet." };
+
+  const parsed = sampleSchema.safeParse({
+    to: String(formData.get("to") ?? ""),
+    kind: String(formData.get("kind") ?? "receipt"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
+
+  const { to, kind } = parsed.data;
+
+  if (kind === "reminder") {
+    const sent = await sendEmail({
+      to,
+      subject: "[Sample] Your Zephiel subscription renews in 7 days",
+      html: emailShell({
+        heading: "Your subscription renews in 7 days",
+        intro: "This is a sample renewal reminder sent from the admin console. No action is needed.",
+        rows: [
+          { label: "API", value: "Multistore" },
+          { label: "Plan", value: "Standard (3 stores)" },
+          { label: "Renews", value: new Date(Date.now() + 6048e5).toDateString() },
+        ],
+        footer: "Sample message — this does not relate to a real subscription.",
+      }),
+      text: "Sample renewal reminder from the Zephiel admin console.",
+    });
+    return sent.ok ? { ok: `Sample reminder sent to ${to}.` } : { error: `Could not send: ${sent.error}` };
+  }
+
+  const doc = await sampleInvoiceDocument(kind);
+  const sent = await sendEmail({
+    to,
+    subject: `[Sample] ${doc.company.name} ${kind} ${doc.invoiceNumber}`,
+    html: renderInvoiceHtml(doc),
+    text: renderInvoiceText(doc),
+  });
+
+  return sent.ok
+    ? { ok: `Sample ${kind} sent to ${to}.` }
+    : { error: `Could not send: ${sent.error}` };
+}
+
 export async function sendTestEmail(_prev: FormState): Promise<FormState> {
   const admin = await requireAdmin();
 
@@ -258,6 +318,37 @@ export async function reseedCatalogue(_prev: FormState): Promise<FormState> {
     console.error("Reseed failed:", err);
     return { error: `Could not load the catalogue: ${err instanceof Error ? err.message : "unknown error"}` };
   }
+}
+
+const companySchema = z.object({
+  companyName: z.string().trim().max(120),
+  companyAddress: z.string().trim().max(400),
+  companyTaxId: z.string().trim().max(60),
+});
+
+/**
+ * Business identity printed on invoices and receipts.
+ *
+ * Kept as settings rather than constants: these are the operator's own
+ * registered details, and inventing a plausible-looking address for a document
+ * that customers keep for their accounts would be worse than leaving it blank.
+ */
+export async function saveCompanyDetails(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+
+  const parsed = companySchema.safeParse({
+    companyName: String(formData.get("companyName") ?? ""),
+    companyAddress: String(formData.get("companyAddress") ?? ""),
+    companyTaxId: String(formData.get("companyTaxId") ?? ""),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
+
+  await setSetting("company_name", parsed.data.companyName, admin.id);
+  await setSetting("company_address", parsed.data.companyAddress, admin.id);
+  await setSetting("company_tax_id", parsed.data.companyTaxId, admin.id);
+
+  revalidatePath("/admin/settings");
+  return { ok: "Invoice details saved." };
 }
 
 const adminEmailSchema = z.object({

@@ -366,3 +366,19 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 );
 
 CREATE INDEX IF NOT EXISTS rate_limits_window_idx ON rate_limits(window_start);
+
+-- Profile picture, stored in the row rather than an object store: the images
+-- are resized to a 256px square on upload, so they are a few kilobytes, and
+-- this avoids a second service to provision, authorise, and back up.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar            bytea;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_type       text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_updated_at timestamptz;
+
+-- Invoice identity for a payment. The number is drawn from a sequence so it is
+-- stable, ordered, and never reuses a value after a rolled-back transaction.
+CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START 1001;
+
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS invoice_number  text UNIQUE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_sent_at timestamptz;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS period_start    timestamptz;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS period_end      timestamptz;

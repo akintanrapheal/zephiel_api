@@ -9,7 +9,10 @@ export type SettingKey =
   | "platform_name"
   | "support_email"
   | "resend_api_key"
-  | "email_from";
+  | "email_from"
+  | "company_name"
+  | "company_address"
+  | "company_tax_id";
 
 const SECRET_KEYS: SettingKey[] = ["paystack_secret_key", "resend_api_key"];
 
