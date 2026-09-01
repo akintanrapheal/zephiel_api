@@ -18,8 +18,8 @@ export async function changeMyName(_prev: FormState, formData: FormData): Promis
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
 
   await sql`UPDATE users SET name = ${parsed.data.name} WHERE id = ${user.id}`;
-  revalidatePath("/dashboard/profile");
-  revalidatePath("/dashboard");
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/admin", "layout");
   return { ok: "Name updated." };
 }
 
@@ -147,8 +147,8 @@ export async function uploadAvatar(_prev: FormState, formData: FormData): Promis
     WHERE id = ${user.id}
   `;
 
-  revalidatePath("/dashboard/profile");
-  revalidatePath("/dashboard");
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/admin", "layout");
   return { ok: "Profile picture updated." };
 }
 
@@ -158,6 +158,6 @@ export async function removeAvatar(): Promise<void> {
     UPDATE users SET avatar = NULL, avatar_type = NULL, avatar_updated_at = NULL
     WHERE id = ${user.id}
   `;
-  revalidatePath("/dashboard/profile");
-  revalidatePath("/dashboard");
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/admin", "layout");
 }

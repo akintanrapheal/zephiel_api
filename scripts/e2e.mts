@@ -1322,6 +1322,42 @@ try {
       check("the daily budget spends no more than what remains",
         perDay * pace.days <= pace.rem, `${perDay}/day x ${pace.days} vs ${pace.rem}`);
 
+      // The store row used to sum all time while the quota bar counted the
+      // period, so the two disagreed on adjacent screens. Rows on both sides of
+      // the boundary prove the figure now stops at it.
+      const [aStore] = await sql<{ id: string }[]>`
+        SELECT id FROM stores WHERE user_id = ${user.id} AND subscription_id = ${qSub.id} LIMIT 1
+      `;
+      if (aStore) {
+        await sql`DELETE FROM usage_daily WHERE store_id = ${aStore.id}`;
+        // 500 inside the period, 900 before it began.
+        await sql`
+          INSERT INTO usage_daily (user_id, api_id, store_id, day, calls, errors, avg_latency)
+          VALUES (${user.id}, ${qSub.api_id}, ${aStore.id}, CURRENT_DATE - 1, 500, 0, 150),
+                 (${user.id}, ${qSub.api_id}, ${aStore.id}, CURRENT_DATE - 80, 900, 0, 150)
+        `;
+        const [shown] = await sql<{ c: number }[]>`
+          SELECT (
+            COALESCE((SELECT SUM(d.calls) FROM usage_daily d
+              WHERE d.store_id = st.id
+                AND d.day >= COALESCE(sub.current_period_start, CURRENT_DATE - 30)::date
+                AND d.day < CURRENT_DATE), 0)
+            + (SELECT COUNT(*) FROM usage_events e
+               WHERE e.store_id = st.id AND e.created_at >= CURRENT_DATE)
+          )::int AS c
+          FROM stores st LEFT JOIN subscriptions sub ON sub.id = st.subscription_id
+          WHERE st.id = ${aStore.id}
+        `;
+        const [live] = await sql<{ c: number }[]>`
+          SELECT COUNT(*)::int AS c FROM usage_events
+          WHERE store_id = ${aStore.id} AND created_at >= CURRENT_DATE
+        `;
+        check("a store's call figure counts the period, not all time",
+          shown.c === 500 + live.c, `showed ${shown.c}, expected ${500 + live.c}`);
+        check("history before the period began is excluded", shown.c < 1400);
+        await sql`DELETE FROM usage_daily WHERE store_id = ${aStore.id}`;
+      }
+
       await sql`DELETE FROM usage_daily WHERE user_id = ${user.id} AND api_id = ${qSub.api_id}`;
     }
   }

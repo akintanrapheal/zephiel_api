@@ -185,7 +185,7 @@ export default function StoreManager({
                     <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
                     <p className="truncate text-xs text-muted">
                       {PLATFORM_LABELS[s.platform as keyof typeof PLATFORM_LABELS] ?? s.platform}
-                      {s.domain && ` · ${s.domain}`} &middot; {s.calls.toLocaleString()} calls
+                      {s.domain && ` · ${s.domain}`} &middot; {s.calls.toLocaleString()} calls this period
                       {s.lastCall && ` · last ${new Date(s.lastCall).toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}`}
                     </p>
                   </div>

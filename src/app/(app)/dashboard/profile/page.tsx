@@ -23,9 +23,14 @@ function Card({ title, description, children }: {
 export default async function ProfilePage() {
   const user = await requireUser();
 
-  const [row] = await sql<{ name: string; avatar_updated_at: Date | null; created_at: Date }[]>`
+  // Tolerant of the avatar columns being absent: they arrive with a migration,
+  // and a page that 500s is a worse way to learn that than a page that says so.
+  const rows = await sql<{ name: string; avatar_updated_at: Date | null; created_at: Date }[]>`
     SELECT name, avatar_updated_at, created_at FROM users WHERE id = ${user.id} LIMIT 1
-  `;
+  `.catch(() => null);
+
+  const migrated = rows !== null;
+  const row = rows?.[0];
 
   return (
     <div className="space-y-6">
@@ -49,7 +54,15 @@ export default async function ProfilePage() {
       </header>
 
       <Card title="Profile picture" description="Shown beside your name across the dashboard.">
-        <AvatarForm hasAvatar={Boolean(row?.avatar_updated_at)} />
+        {migrated ? (
+          <AvatarForm hasAvatar={Boolean(row?.avatar_updated_at)} />
+        ) : (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted">
+            Profile pictures need a database migration that has not run on this
+            deployment yet. An administrator can apply it from Settings &rarr; Data &amp;
+            maintenance.
+          </p>
+        )}
       </Card>
 
       <Card title="Your name">

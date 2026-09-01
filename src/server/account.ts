@@ -145,18 +145,35 @@ export type Store = {
   createdAt: Date;
 };
 
+/**
+ * Stores with the calls they have made in the current billing period.
+ *
+ * Scoped to the period, not all time. An unbounded lifetime total sat next to a
+ * period-scoped quota bar and a six-hour chart, so three numbers on the same
+ * screen counted three different things and none of them said which.
+ * Period-scoped means these sum to the figure the quota bar reports.
+ */
 export async function getStores(userId: string): Promise<Store[]> {
   return sql<Store[]>`
     SELECT
       st.id, st.name, st.platform, st.domain, st.status, st.created_at AS "createdAt",
       k.key_prefix AS "keyPrefix",
       (
-        COALESCE((SELECT SUM(d.calls) FROM usage_daily d WHERE d.store_id = st.id), 0)
-        + (SELECT COUNT(*) FROM usage_events e WHERE e.store_id = st.id AND e.created_at >= CURRENT_DATE)
+        COALESCE((
+          SELECT SUM(d.calls) FROM usage_daily d
+          WHERE d.store_id = st.id
+            AND d.day >= COALESCE(sub.current_period_start, CURRENT_DATE - 30)::date
+            AND d.day < CURRENT_DATE
+        ), 0)
+        + (
+          SELECT COUNT(*) FROM usage_events e
+          WHERE e.store_id = st.id AND e.created_at >= CURRENT_DATE
+        )
       )::int AS calls,
       (SELECT MAX(e.created_at) FROM usage_events e WHERE e.store_id = st.id) AS "lastCall"
     FROM stores st
     LEFT JOIN api_keys k ON k.store_id = st.id AND k.revoked_at IS NULL
+    LEFT JOIN subscriptions sub ON sub.id = st.subscription_id
     WHERE st.user_id = ${userId}
     ORDER BY st.created_at
   `;
