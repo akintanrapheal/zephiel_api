@@ -72,6 +72,21 @@ export default async function AdminSettingsPage() {
             {config.secretKey ? "Connected" : "Not configured"}
           </span>
 
+          {/* Which Paystack environment charges run against. Without this the
+              only way to find out was to reach the checkout page and read the
+              banner Paystack puts on it. */}
+          {config.mode && (
+            <span
+              className={
+                config.mode === "live"
+                  ? "inline-flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-emerald-600"
+                  : "inline-flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-amber-600"
+              }
+            >
+              {config.mode === "live" ? "Live mode" : "Test mode"}
+            </span>
+          )}
+
           {config.secretKey && (
             <span className="text-xs text-muted">
               Key from{" "}
@@ -88,7 +103,25 @@ export default async function AdminSettingsPage() {
           )}
         </div>
 
-        {secret.configured && secret.unreadable && (
+        {config.storedUnreadable && (
+          <p className="mb-5 rounded-xl border border-rose-500/40 bg-rose-500/5 px-4 py-3 text-sm text-ink">
+            <span className="font-semibold">Payments are stopped.</span> A key is stored here but can no
+            longer be decrypted, because the encryption key changed since it was saved. It is not
+            silently replaced by <code className="font-mono text-xs">PAYSTACK_SECRET_KEY</code> — doing
+            that would charge against a different Paystack environment than the one you configured.
+            Paste the key again below to fix it.
+          </p>
+        )}
+
+        {config.mode === "test" && (
+          <p className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted">
+            Checkout is running against Paystack&apos;s test environment. Cards are simulated and no
+            money moves. Save an <code className="font-mono text-xs">sk_live_…</code> key to take real
+            payments.
+          </p>
+        )}
+
+        {secret.configured && secret.unreadable && !config.storedUnreadable && (
           <p className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted">
             A key is stored but can no longer be decrypted — the encryption key changed. Enter the key
             again to replace it.

@@ -1279,6 +1279,14 @@ try {
   // Matching on the fixture prefixes rather than this run's own values also
   // sweeps up anything an earlier crashed run left behind.
   await sql`DELETE FROM apis WHERE slug LIKE 'e2e-api-%'`;
+
+  // Payments before users: payments.user_id is ON DELETE SET NULL, so removing
+  // the fixture users first orphans their payment rows instead of taking them,
+  // and the audit then reports those orphans as stuck pending charges.
+  await sql`
+    DELETE FROM payments
+    WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e\_%@zephiel.test')
+  `;
   await sql`DELETE FROM users WHERE email LIKE 'e2e\_%@zephiel.test'`;
 
   await sql.end();

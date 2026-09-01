@@ -61,6 +61,20 @@ function decrypt(stored: string): string | null {
   }
 }
 
+/**
+ * Keys whose stored value exists but could not be decrypted.
+ *
+ * Kept separate from getSettings() because an unreadable secret and an unset
+ * one are very different situations: the first means an operator saved
+ * something and the key material has since changed.
+ */
+export async function unreadableSecrets(): Promise<SettingKey[]> {
+  const rows = await sql<{ key: SettingKey; value: string; is_secret: boolean }[]>`
+    SELECT key, value, is_secret FROM settings WHERE is_secret = true AND value <> ''
+  `;
+  return rows.filter((r) => decrypt(r.value) === null).map((r) => r.key);
+}
+
 /** All settings, with secrets decrypted. Missing keys are simply absent. */
 export async function getSettings(): Promise<Partial<Record<SettingKey, string>>> {
   const rows = await sql<{ key: SettingKey; value: string; is_secret: boolean }[]>`

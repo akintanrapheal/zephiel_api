@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getSettings } from "./settings";
+import { getSettings, unreadableSecrets } from "./settings";
 
 /**
  * Paystack's API root.
@@ -20,7 +20,23 @@ export type PaystackConfig = {
   usdToNgn: number;
   /** Where the value came from, so the console can show it. */
   source: "settings" | "env" | "none";
+  /** Which Paystack environment the active key charges against. */
+  mode: "test" | "live" | null;
+  /**
+   * A key was saved in the console but cannot be decrypted. The env key is not
+   * used in its place: the operator's recorded intent is the stored one, and
+   * quietly charging against a different key is how a live deployment ends up
+   * taking test-mode payments that collect nothing.
+   */
+  storedUnreadable: boolean;
 };
+
+function modeOf(key: string | null): "test" | "live" | null {
+  if (!key) return null;
+  if (key.startsWith("sk_live_")) return "live";
+  if (key.startsWith("sk_test_")) return "test";
+  return null;
+}
 
 /**
  * Configuration resolves from the admin console first, then the environment.
@@ -36,11 +52,21 @@ export async function getPaystackConfig(): Promise<PaystackConfig> {
   const currency = (settings.paystack_currency ?? process.env.PAYSTACK_CURRENCY ?? "NGN").toUpperCase();
   const rate = Number(settings.usd_to_ngn ?? process.env.USD_TO_NGN ?? 1550);
 
+  // Only ask when the console key is missing — that is the case where an
+  // unreadable stored value and no stored value look identical from here.
+  const unreadable = fromSettings
+    ? false
+    : (await unreadableSecrets().catch(() => [] as string[])).includes("paystack_secret_key");
+
+  const secretKey = fromSettings ?? (unreadable ? null : (fromEnv ?? null));
+
   return {
-    secretKey: fromSettings ?? fromEnv ?? null,
+    secretKey,
     currency,
     usdToNgn: Number.isFinite(rate) && rate > 0 ? rate : 1550,
-    source: fromSettings ? "settings" : fromEnv ? "env" : "none",
+    source: fromSettings ? "settings" : secretKey ? "env" : "none",
+    mode: modeOf(secretKey),
+    storedUnreadable: unreadable,
   };
 }
 
