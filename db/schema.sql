@@ -382,3 +382,15 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS invoice_number  text UNIQUE;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_sent_at timestamptz;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS period_start    timestamptz;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS period_end      timestamptz;
+
+-- The billing period start, stored rather than inferred.
+--
+-- It used to be derived as current_period_end minus one month, which is only
+-- right when every period is exactly a month. A backdated account whose first
+-- period runs from signup to a chosen renewal date could not be expressed, and
+-- usage reconciliation counted the wrong window for it.
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_start timestamptz;
+
+UPDATE subscriptions SET current_period_start = current_period_end -
+  (CASE WHEN billing_interval = 'annual' THEN interval '1 year' ELSE interval '1 month' END)
+WHERE current_period_start IS NULL AND current_period_end IS NOT NULL;

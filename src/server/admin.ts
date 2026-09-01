@@ -151,12 +151,14 @@ export async function listSubscriptions() {
       status: string;
       quota: number;
       used: number;
+      current_period_start: Date | null;
       current_period_end: Date | null;
       created_at: Date;
     }[]
   >`
     SELECT s.id, u.email, a.name AS api_name, p.name AS plan_name, p.price, p.unit,
-           s.units, s.status, s.quota, s.used, s.current_period_end, s.created_at
+           s.units, s.status, s.quota, s.used, s.current_period_start,
+           s.current_period_end, s.created_at
     FROM subscriptions s
     JOIN users u ON u.id = s.user_id
     JOIN apis  a ON a.id = s.api_id

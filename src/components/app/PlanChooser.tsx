@@ -56,11 +56,16 @@ export default function PlanChooser({
   const current = plans.find((p) => p.name === subscription.planName);
   const currentMonthly = (current?.price ?? 0) * (current?.unit ? subscription.units : 1);
 
+  // Formatted in UTC on purpose. The period end is stored as the last instant
+  // of its day in UTC, so rendering it in the viewer's zone showed the next
+  // date to anyone east of Greenwich — a period ending 30 September read as
+  // 1 October in Lagos.
   const renews = subscription.currentPeriodEnd
     ? new Date(subscription.currentPeriodEnd).toLocaleDateString("en-GB", {
         day: "numeric",
         month: "long",
         year: "numeric",
+        timeZone: "UTC",
       })
     : null;
 

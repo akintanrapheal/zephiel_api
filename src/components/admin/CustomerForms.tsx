@@ -43,6 +43,7 @@ export function SubscriptionForm({
     units: number;
     used: number;
     quota: number;
+    starts: string;
     ends: string;
   };
   plans: { id: string; name: string; price: number; unit: string | null }[];
@@ -70,6 +71,7 @@ export function SubscriptionForm({
           ))}
         </Select>
 
+        <Field label="Period began" name="starts" type="date" defaultValue={sub.starts} />
         <Field label="Renews on" name="ends" type="date" defaultValue={sub.ends} />
         <Field label="Billable units" name="units" type="number" min="1" defaultValue={sub.units} />
         <Field

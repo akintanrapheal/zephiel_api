@@ -31,10 +31,12 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       used: number;
       demo_traffic: boolean;
       quota: number;
+      starts: Date | null;
       ends: Date | null;
     }[]
   >`
     SELECT s.id, s.api_id, a.name AS api_name, s.plan_id, s.status, s.units, s.used, s.quota, s.demo_traffic,
+           s.current_period_start AS starts,
            s.current_period_end AS ends
     FROM subscriptions s
     JOIN apis a ON a.id = s.api_id
@@ -92,6 +94,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 units: s.units,
                 used: s.used,
                 quota: s.quota,
+                starts: iso(s.starts),
                 ends: iso(s.ends),
               }}
               plans={plans

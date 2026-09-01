@@ -348,7 +348,8 @@ try {
   const [reminderApi] = await sql<{ api_id: string; plan_id: string; quota: number }[]>`
     SELECT p.api_id, p.id AS plan_id, p.quota FROM plans p
     JOIN apis a ON a.id = p.api_id
-    WHERE a.slug = 'weather-forecast' AND p.price = 0 LIMIT 1
+    WHERE a.slug = 'weather-forecast' AND p.price = 0 AND p.name <> 'Enterprise'
+    ORDER BY p.sort_order LIMIT 1
   `;
   await sql`
     INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units, current_period_end)
@@ -539,7 +540,8 @@ try {
   // Renewals: a lapsed free plan rolls over, a lapsed paid plan expires.
   const [freePlanRow] = await sql<{ id: string; api_id: string; quota: number }[]>`
     SELECT p.id, p.api_id, p.quota FROM plans p JOIN apis a ON a.id = p.api_id
-    WHERE a.slug = 'timezone-api' AND p.price = 0 LIMIT 1
+    WHERE a.slug = 'timezone-api' AND p.price = 0 AND p.name <> 'Enterprise'
+    ORDER BY p.sort_order LIMIT 1
   `;
   await sql`
     INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, used, current_period_end)
@@ -551,7 +553,8 @@ try {
 
   const [paidPlanRow] = await sql<{ id: string; api_id: string; quota: number }[]>`
     SELECT p.id, p.api_id, p.quota FROM plans p JOIN apis a ON a.id = p.api_id
-    WHERE a.slug = 'air-quality' AND p.price > 0 LIMIT 1
+    WHERE a.slug = 'air-quality' AND p.price > 0 AND p.name <> 'Enterprise'
+    ORDER BY p.sort_order LIMIT 1
   `;
   await sql`
     INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, used, current_period_end)
@@ -1041,7 +1044,8 @@ try {
       SELECT id, slug FROM apis WHERE slug = 'ip-intelligence' LIMIT 1
     `;
     const [freeTier] = await sql<{ id: string }[]>`
-      SELECT id FROM plans WHERE api_id = ${ipApi.id} AND price = 0 LIMIT 1
+      SELECT id FROM plans WHERE api_id = ${ipApi.id} AND price = 0
+        AND name <> 'Enterprise' ORDER BY sort_order LIMIT 1
     `;
     const [paidTier] = await sql<{ id: string; quota: number }[]>`
       SELECT id, quota::int FROM plans WHERE api_id = ${ipApi.id} AND price > 0
@@ -1264,8 +1268,11 @@ try {
     if (qSub) {
       // History either side of the period boundary; only the inside counts.
       await sql`DELETE FROM usage_daily WHERE user_id = ${user.id} AND api_id = ${qSub.api_id}`;
+      // A backdated first period: longer than a month, which is exactly what
+      // the old "end minus one month" inference could not represent.
       await sql`
         UPDATE subscriptions SET quota = 5000, used = 4001,
+          current_period_start = CURRENT_DATE - 40,
           current_period_end = now() + interval '20 days'
         WHERE id = ${qSub.id}
       `;
@@ -1275,12 +1282,19 @@ try {
         FROM generate_series(CURRENT_DATE - 60, CURRENT_DATE - 1, interval '1 day') d
       `;
 
+      // Same definition the reconciliation uses: rolled-up finished days plus
+      // today's live events, so the boundary is not counted twice or missed.
       const [expected] = await sql<{ c: number }[]>`
-        SELECT COALESCE(SUM(d.calls), 0)::int AS c
-        FROM usage_daily d, subscriptions s
-        WHERE s.id = ${qSub.id} AND d.user_id = s.user_id AND d.api_id = s.api_id
-          AND d.day >= (s.current_period_end - interval '1 month')::date
-          AND d.day < CURRENT_DATE
+        SELECT (
+          COALESCE((SELECT SUM(d.calls) FROM usage_daily d
+            WHERE d.user_id = s.user_id AND d.api_id = s.api_id
+              AND d.day >= s.current_period_start::date AND d.day < CURRENT_DATE), 0)
+          + COALESCE((SELECT COUNT(*) FROM usage_events e
+            WHERE e.user_id = s.user_id AND e.api_id = s.api_id
+              AND e.created_at >= CURRENT_DATE
+              AND e.created_at >= s.current_period_start), 0)
+        )::int AS c
+        FROM subscriptions s WHERE s.id = ${qSub.id}
       `;
 
       await submit(`/admin/users/${user.id}`, { subscriptionId: qSub.id },
@@ -1292,6 +1306,10 @@ try {
       check("quota counter is recomputed from recorded usage",
         reconciled.used === expected.c, `used ${reconciled.used}, period total ${expected.c}`);
       check("quota counter is not the lifetime total", reconciled.used < 6000);
+      // 40 days of history at 100/day: a one-month inference would find ~3,100.
+      check("a period longer than a month is counted in full",
+        reconciled.used === expected.c && expected.c > 3500,
+        `used ${reconciled.used}, expected ${expected.c}`);
       check("quota counter never exceeds the quota", reconciled.used <= reconciled.quota);
 
       // What is left has to survive the rest of the period.

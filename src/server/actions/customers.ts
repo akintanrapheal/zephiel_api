@@ -61,6 +61,14 @@ export async function updateSubscription(_prev: FormState, formData: FormData): 
   const ends = String(formData.get("ends") ?? "").trim();
   if (ends && !dateOnly.test(ends)) return { error: "Use a YYYY-MM-DD renewal date." };
 
+  // The period start is stored, not inferred, so a backdated account can run a
+  // first period from signup to a chosen renewal date.
+  const starts = String(formData.get("starts") ?? "").trim();
+  if (starts && !dateOnly.test(starts)) return { error: "Use a YYYY-MM-DD start date." };
+  if (starts && ends && starts >= ends) {
+    return { error: "The period must start before it renews." };
+  }
+
   // The plan must belong to the same API as the subscription.
   const [plan] = await sql<{ id: string; quota: number }[]>`
     SELECT p.id, p.quota
@@ -78,6 +86,7 @@ export async function updateSubscription(_prev: FormState, formData: FormData): 
       status  = ${parsed.data.status},
       units   = ${parsed.data.units},
       used    = ${parsed.data.used},
+      current_period_start = ${starts ? `${starts}T00:00:00Z` : null},
       current_period_end = ${ends ? `${ends}T23:59:59Z` : null},
       updated_at = now()
     WHERE id = ${id}
@@ -87,8 +96,12 @@ export async function updateSubscription(_prev: FormState, formData: FormData): 
     SELECT user_id FROM subscriptions WHERE id = ${id} LIMIT 1
   `;
 
+  // Moving the period changes which calls count against the allowance.
+  await reconcileUsed(id);
+
   revalidatePath(`/admin/users/${row?.user_id ?? ""}`);
   revalidatePath("/admin/subscriptions");
+  revalidatePath("/dashboard");
   return { ok: "Subscription updated." };
 }
 

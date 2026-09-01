@@ -62,7 +62,9 @@ export async function processRenewals() {
     UPDATE subscriptions s
     SET used = 0,
         -- Roll forward by the period the subscription is actually billed on,
-        -- so an annual free plan does not reset twelve times a year.
+        -- so an annual free plan does not reset twelve times a year. The period
+        -- that just closed becomes the start of the next one.
+        current_period_start = s.current_period_end,
         current_period_end = s.current_period_end +
           (CASE WHEN s.billing_interval = 'annual'
                 THEN interval '1 year' ELSE interval '1 month' END),
@@ -292,7 +294,8 @@ export async function reconcileUsed(subscriptionId?: string) {
         COALESCE((
           SELECT SUM(d.calls) FROM usage_daily d
           WHERE d.user_id = s.user_id AND d.api_id = s.api_id
-            AND d.day >= (
+            AND d.day >= COALESCE(
+              s.current_period_start,
               s.current_period_end - CASE WHEN s.billing_interval = 'annual'
                 THEN interval '1 year' ELSE interval '1 month' END
             )::date
@@ -302,6 +305,7 @@ export async function reconcileUsed(subscriptionId?: string) {
           SELECT COUNT(*) FROM usage_events e
           WHERE e.user_id = s.user_id AND e.api_id = s.api_id
             AND e.created_at >= CURRENT_DATE
+            AND e.created_at >= COALESCE(s.current_period_start, e.created_at)
         ), 0)
       ))::int,
       updated_at = now()
