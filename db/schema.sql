@@ -408,3 +408,8 @@ ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS source     text NOT NULL DEFAU
 
 CREATE INDEX IF NOT EXISTS usage_events_origin_idx
   ON usage_events(user_id, origin, created_at DESC);
+
+-- Connected storefronts a plan allows. 0 means no fixed ceiling (Enterprise,
+-- which is negotiated). This used to be derived from whether the plan was
+-- free, so every paid tier shared one limit and the tiers could not differ.
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS store_limit integer NOT NULL DEFAULT 0;

@@ -66,8 +66,8 @@ export async function POST(request: Request) {
   if (domain.length > 255) return fail(400, "domain_too_long", "Domains are limited to 255 characters.");
 
   // The active Multistore API subscription this account holds.
-  const [sub] = await sql<{ id: string; price: number; plan_name: string }[]>`
-    SELECT s.id, p.price::float8 AS price, p.name AS plan_name
+  const [sub] = await sql<{ id: string; price: number; plan_name: string; store_limit: number }[]>`
+    SELECT s.id, p.price::float8 AS price, p.store_limit, p.name AS plan_name
     FROM subscriptions s
     JOIN apis a ON a.id = s.api_id
     JOIN plans p ON p.id = s.plan_id
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     // The plan's store allowance applies here exactly as it does in the
     // dashboard. Without this an account could provision past its limit by
     // calling the API instead of using the UI.
-    const limit = storeLimitFor(sub.price);
+    const limit = storeLimitFor(sub.price, sub.store_limit);
     const [{ count }] = await sql<{ count: string }[]>`
       SELECT COUNT(*)::text AS count FROM stores WHERE subscription_id = ${sub.id}
     `;

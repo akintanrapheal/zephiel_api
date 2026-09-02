@@ -12,7 +12,6 @@ import sharp from "sharp";
 import { ANNUAL_MONTHS_CHARGED } from "../src/lib/plans.ts";
 import postgres from "postgres";
 import { loadEnv } from "./env.mts";
-import { FREE_PLAN_STORE_LIMIT as FREE_STORE_LIMIT } from "../src/lib/plans.ts";
 
 loadEnv();
 
@@ -440,7 +439,7 @@ try {
     subscriptionId: msSub.id,
     from: "2026-06-02",
     total: "7000000",
-  }, adminCookie, 'name="subscriptionId"');
+  }, adminCookie, 'name="total"');
   check("admin can generate traffic history", genRes.status === 200 || genRes.status === 303, `status ${genRes.status}`);
 
   const [rollupTotal] = await sql<{ c: string }[]>`
@@ -1250,16 +1249,18 @@ try {
     );
     const [freeUser] = await sql<{ id: string }[]>`SELECT id FROM users WHERE email = ${freeEmail} LIMIT 1`;
     const [msApi2] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
-    const [sandbox2] = await sql<{ id: string; quota: number }[]>`
-      SELECT id, quota::int FROM plans WHERE api_id = ${msApi2.id} AND name = 'Sandbox' LIMIT 1
+    const [sandbox2] = await sql<{ id: string; quota: number; store_limit: number }[]>`
+      SELECT id, quota::int, store_limit::int FROM plans
+      WHERE api_id = ${msApi2.id} AND name = 'Sandbox' LIMIT 1
     `;
+    const freeStoreLimit = sandbox2.store_limit;
     await sql`
       INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units, current_period_end)
       VALUES (${freeUser.id}, ${msApi2.id}, ${sandbox2.id}, 'active', ${sandbox2.quota}, 1,
               now() + interval '30 days')
     `;
 
-    for (let i = 1; i <= FREE_STORE_LIMIT + 1; i++) {
+    for (let i = 1; i <= freeStoreLimit + 1; i++) {
       await submit("/dashboard/stores", {
         name: `Free Store ${i}`,
         platform: "shopify",
@@ -1270,10 +1271,20 @@ try {
       SELECT COUNT(*)::text AS c FROM stores WHERE user_id = ${freeUser.id}
     `;
     check(
-      `a free plan connects at most ${FREE_STORE_LIMIT} stores`,
-      Number(connected.c) === FREE_STORE_LIMIT,
+      `the free plan connects at most its own allowance of ${freeStoreLimit}`,
+      Number(connected.c) === freeStoreLimit,
       `${connected.c} connected`
     );
+
+    // Each tier carries its own ceiling; they used to share one.
+    const limits = await sql<{ name: string; store_limit: number }[]>`
+      SELECT p.name, p.store_limit::int FROM plans p JOIN apis a ON a.id = p.api_id
+      WHERE a.slug = 'multistore' ORDER BY p.sort_order
+    `;
+    check("Multistore tiers carry their own store allowance",
+      limits[0]?.store_limit === 1 && limits[1]?.store_limit === 3 &&
+        limits[2]?.store_limit === 5 && limits[3]?.store_limit === 0,
+      limits.map((l) => `${l.name}:${l.store_limit}`).join(" "));
 
     const storesHtml = await (await fetch(`${BASE}/dashboard/stores`, { headers: { cookie: freeCookie } })).text();
     check("free plan is told its store allowance rather than a $0 bill",
@@ -1472,6 +1483,41 @@ try {
         await sql`DELETE FROM usage_daily WHERE store_id = ${aStore.id}`;
       }
 
+      // Backdated invoices, for demonstration accounts that need a history.
+      await sql`
+        UPDATE subscriptions SET plan_id = (
+          SELECT id FROM plans WHERE api_id = ${qSub.api_id} AND price > 0
+            AND name <> 'Enterprise' ORDER BY sort_order LIMIT 1
+        ) WHERE id = ${qSub.id}
+      `;
+      await submit(`/admin/users/${user.id}`, {
+        subscriptionId: qSub.id, months: "3", method: "card",
+      }, adminCookie, "Record payments");
+
+      const invoices = await sql<{ invoice_number: string; reference: string; period_start: Date }[]>`
+        SELECT invoice_number, reference, period_start FROM payments
+        WHERE user_id = ${user.id} AND status = 'success' ORDER BY period_start
+      `;
+      check("past months are invoiced one per month", invoices.length === 3, `${invoices.length}`);
+      check("every backdated payment carries an invoice number",
+        invoices.every((i) => /^ZPH-\d{4}-\d{5}$/.test(i.invoice_number ?? "")));
+      check("backdated references cannot pass for Paystack ones",
+        invoices.every((i) => i.reference.startsWith("demo_")));
+      check("each invoice covers a different month",
+        new Set(invoices.map((i) => new Date(i.period_start).getUTCMonth())).size === 3);
+
+      // Filling the period has to land on the number it was asked for.
+      await submit(`/admin/users/${user.id}`, { subscriptionId: qSub.id, percent: "94" },
+        adminCookie, "Set usage");
+      const [filled] = await sql<{ used: number; quota: number }[]>`
+        SELECT used, quota FROM subscriptions WHERE id = ${qSub.id}
+      `;
+      check("filling the period hits the share asked for",
+        filled.used === Math.floor(filled.quota * 0.94),
+        `${filled.used} of ${filled.quota}`);
+      check("filling the period leaves the account under quota", filled.used < filled.quota);
+
+      await sql`DELETE FROM payments WHERE user_id = ${user.id} AND reference LIKE 'demo_%'`;
       await sql`DELETE FROM usage_daily WHERE user_id = ${user.id} AND api_id = ${qSub.api_id}`;
     }
   }

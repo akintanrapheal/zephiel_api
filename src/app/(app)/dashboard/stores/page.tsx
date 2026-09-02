@@ -21,8 +21,8 @@ export default async function StoresPage() {
   const [stores, activity, sub] = await Promise.all([
     getStores(user.id),
     getStoreActivity(user.id, 6),
-    sql<{ id: string; price: string; unit: string | null }[]>`
-      SELECT s.id, p.price, p.unit
+    sql<{ id: string; price: string; unit: string | null; storeLimit: number }[]>`
+      SELECT s.id, p.price, p.unit, p.store_limit AS "storeLimit"
       FROM subscriptions s
       JOIN apis a  ON a.id = s.api_id
       JOIN plans p ON p.id = s.plan_id
@@ -33,7 +33,7 @@ export default async function StoresPage() {
 
   const active = sub[0];
   const pricePerStore = active?.unit ? Number(active.price) : 0;
-  const storeLimit = storeLimitFor(Number(active?.price ?? 0));
+  const storeLimit = storeLimitFor(Number(active?.price ?? 0), active?.storeLimit);
 
   const series = stores.map((s) => ({
     id: s.id,

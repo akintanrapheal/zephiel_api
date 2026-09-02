@@ -11,6 +11,8 @@ export type Plan = {
   rateLimit: string;
   features: string[];
   popular?: boolean;
+  /** Connected storefronts allowed; 0 means negotiated rather than fixed. */
+  storeLimit?: number;
   /** Calls included per month; enforced by the gateway. */
   quota?: number;
 };

@@ -39,8 +39,8 @@ export async function addStore(_prev: StoreState, formData: FormData): Promise<S
 
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const [sub] = await sql<{ id: string; price: number; plan_name: string }[]>`
-    SELECT s.id, p.price::float8 AS price, p.name AS plan_name
+  const [sub] = await sql<{ id: string; price: number; plan_name: string; store_limit: number }[]>`
+    SELECT s.id, p.price::float8 AS price, p.name AS plan_name, p.store_limit
     FROM subscriptions s
     JOIN apis a ON a.id = s.api_id
     JOIN plans p ON p.id = s.plan_id
@@ -54,16 +54,15 @@ export async function addStore(_prev: StoreState, formData: FormData): Promise<S
 
   // The ceiling follows the plan. It used to be a flat 100 regardless, so the
   // Sandbox tier's advertised store allowance was never actually enforced.
-  const limit = storeLimitFor(sub.price);
+  const limit = storeLimitFor(sub.price, sub.store_limit);
   const [{ count }] = await sql<{ count: string }[]>`
     SELECT COUNT(*)::text AS count FROM stores WHERE subscription_id = ${sub.id}
   `;
   if (Number(count) >= limit) {
     return {
-      error:
-        sub.price === 0
-          ? `The ${sub.plan_name} plan connects up to ${limit} stores. Upgrade to add more.`
-          : `Store limit of ${limit} reached. Contact sales for a larger plan.`,
+      error: `The ${sub.plan_name} plan connects up to ${limit} ${
+        limit === 1 ? "store" : "stores"
+      }. Upgrade to add more.`,
     };
   }
 

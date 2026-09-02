@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
+import { formatCurrency } from "@/lib/paystack";
 import { requireAdmin } from "@/lib/auth";
 import PageHeader, { Card } from "@/components/admin/PageHeader";
-import { JoinDateForm, SubscriptionForm, TrafficForm } from "@/components/admin/CustomerForms";
+import { JoinDateForm, SubscriptionForm, TrafficForm, BillingHistoryForm } from "@/components/admin/CustomerForms";
 import { deleteSubscription } from "@/server/actions/customers";
 import { compact } from "@/lib/utils";
 
@@ -47,6 +48,24 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const plans = await sql<
     { id: string; api_id: string; name: string; price: string; unit: string | null }[]
   >`SELECT id, api_id, name, price, unit FROM plans ORDER BY sort_order`;
+
+  const payments = await sql<
+    {
+      id: string;
+      invoice_number: string | null;
+      amount: string;
+      currency: string;
+      channel: string | null;
+      paid_at: Date | null;
+      period_start: Date | null;
+    }[]
+  >`
+    SELECT id, invoice_number, amount::text, currency, channel, paid_at, period_start
+    FROM payments
+    WHERE user_id = ${id} AND status = 'success'
+    ORDER BY paid_at DESC NULLS LAST
+    LIMIT 50
+  `.catch(() => []);
 
   const [stats] = await sql<{ calls: string; keys: string; stores: string }[]>`
     SELECT
@@ -104,6 +123,15 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
 
             <div className="mt-5 border-t border-line pt-5">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Billing history
+              </h3>
+              <div className="mt-3">
+                <BillingHistoryForm subscriptionId={s.id} />
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-line pt-5">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
                 Demonstration traffic
               </h3>
               <div className="mt-3">
@@ -124,6 +152,50 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           </Card>
         ))
       )}
+
+      <Card title="Payment history" padded>
+        {payments.length === 0 ? (
+          <p className="text-sm text-muted">No payments recorded for this account.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <caption className="sr-only">Payments made by this account</caption>
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted">
+                <th scope="col" className="pb-2 font-medium">Invoice</th>
+                <th scope="col" className="pb-2 font-medium">Period</th>
+                <th scope="col" className="pb-2 font-medium">Method</th>
+                <th scope="col" className="pb-2 font-medium">Paid</th>
+                <th scope="col" className="pb-2 text-right font-medium">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments.map((p) => (
+                <tr key={p.id} className="border-b border-line/60">
+                  <td className="py-2.5 font-mono text-xs text-ink">{p.invoice_number ?? "—"}</td>
+                  <td className="py-2.5 text-xs text-muted">
+                    {p.period_start
+                      ? new Date(p.period_start).toLocaleDateString("en-GB", {
+                          month: "short", year: "numeric", timeZone: "UTC",
+                        })
+                      : "—"}
+                  </td>
+                  <td className="py-2.5 text-xs capitalize text-muted">{p.channel ?? "—"}</td>
+                  <td className="py-2.5 text-xs text-muted">
+                    {p.paid_at
+                      ? new Date(p.paid_at).toLocaleDateString("en-GB", {
+                          day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+                        })
+                      : "—"}
+                  </td>
+                  <td className="py-2.5 text-right text-xs font-semibold tabular-nums text-ink">
+                    {formatCurrency(Math.round(Number(p.amount) * 100), p.currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
 
       <Card title="Usage" padded>
         <p className="text-sm text-muted">

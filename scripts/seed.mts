@@ -89,14 +89,15 @@ try {
     // stores and per-store keys.
     for (const [i, p] of a.plans.entries()) {
       await sql`
-        INSERT INTO plans (api_id, name, price, unit, requests, rate_limit, features, popular, quota, sort_order)
+        INSERT INTO plans (api_id, name, price, unit, requests, rate_limit, features, popular, quota, store_limit, sort_order)
         VALUES (${api.id}, ${p.name}, ${p.price}, ${p.unit ?? null}, ${p.requests},
                 ${p.rateLimit}, ${p.features}, ${p.popular ?? false},
-                ${quotaFor(p.requests)}, ${i})
+                ${quotaFor(p.requests)}, ${p.storeLimit ?? 0}, ${i})
         ON CONFLICT (api_id, name) DO UPDATE SET
           price = EXCLUDED.price, unit = EXCLUDED.unit, requests = EXCLUDED.requests,
           rate_limit = EXCLUDED.rate_limit, features = EXCLUDED.features,
-          popular = EXCLUDED.popular, quota = EXCLUDED.quota, sort_order = EXCLUDED.sort_order
+          popular = EXCLUDED.popular, quota = EXCLUDED.quota,
+          store_limit = EXCLUDED.store_limit, sort_order = EXCLUDED.sort_order
       `;
     }
 

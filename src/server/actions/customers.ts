@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sql } from "@/lib/db";
@@ -229,4 +230,180 @@ export async function reconcileUsage(formData: FormData): Promise<void> {
   revalidatePath(`/admin/users/${sub.user_id}`);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/billing");
+}
+
+const historySchema = z.object({
+  months: z.coerce.number().int().min(1).max(24),
+  method: z.string().trim().max(40),
+});
+
+/**
+ * Record past monthly payments for a subscription, with invoices.
+ *
+ * For demonstration accounts that need a plausible billing history. The
+ * references are prefixed `demo_` rather than `zph_`, so these can never be
+ * mistaken for — or reconciled against — a real Paystack transaction, while
+ * the invoices themselves render exactly like live ones.
+ */
+export async function recordPastPayments(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  if (!subscriptionId) return { error: "Missing subscription." };
+
+  const parsed = historySchema.safeParse({
+    months: formData.get("months") || 3,
+    method: String(formData.get("method") ?? "card"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const [sub] = await sql<
+    { user_id: string; price: string; units: number; currency: string }[]
+  >`
+    SELECT s.user_id, p.price::text, s.units,
+           COALESCE((SELECT value FROM settings WHERE key = 'paystack_currency'), 'NGN') AS currency
+    FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+    WHERE s.id = ${subscriptionId} LIMIT 1
+  `;
+  if (!sub) return { error: "Subscription not found." };
+
+  const monthly = Number(sub.price) * Math.max(1, sub.units);
+  if (monthly <= 0) {
+    return { error: "This subscription is on a free plan, so there is nothing to invoice." };
+  }
+
+  // Charged in the settlement currency, the same conversion checkout uses.
+  const settings = await sql<{ key: string; value: string }[]>`
+    SELECT key, value FROM settings WHERE key IN ('paystack_currency', 'usd_to_ngn')
+  `;
+  const currency = settings.find((r) => r.key === "paystack_currency")?.value ?? "NGN";
+  const rate = Number(settings.find((r) => r.key === "usd_to_ngn")?.value ?? 1550);
+  const amount = currency === "USD" ? monthly : Math.round(monthly * rate);
+
+  let written = 0;
+  for (let i = parsed.data.months; i >= 1; i--) {
+    const reference = `demo_${randomBytes(9).toString("hex")}`;
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO payments (user_id, subscription_id, reference, amount, currency, status,
+                            channel, paid_at, period_start, period_end, invoice_number)
+      VALUES (
+        ${sub.user_id}, ${subscriptionId}, ${reference}, ${amount}, ${currency}, 'success',
+        ${parsed.data.method},
+        (date_trunc('month', now()) - (${i}::text || ' months')::interval),
+        (date_trunc('month', now()) - (${i}::text || ' months')::interval),
+        (date_trunc('month', now()) - (${i - 1}::text || ' months')::interval),
+        'ZPH-' || to_char(date_trunc('month', now()) - (${i}::text || ' months')::interval, 'YYYY')
+          || '-' || lpad(nextval('invoice_number_seq')::text, 5, '0')
+      )
+      RETURNING id
+    `;
+    written += rows.length;
+  }
+
+  revalidatePath(`/admin/users/${sub.user_id}`);
+  revalidatePath("/admin/payments");
+  revalidatePath("/dashboard/billing");
+
+  return {
+    ok: `Recorded ${written} monthly ${written === 1 ? "payment" : "payments"} with invoices.`,
+  };
+}
+
+const fillSchema = z.object({ percent: z.coerce.number().int().min(1).max(100) });
+
+/**
+ * Fill the current billing period's usage to a share of the allowance.
+ *
+ * Spread across the days elapsed so far, so the chart shows a plausible ramp
+ * rather than one spike, and the quota bar lands where it was asked to.
+ */
+export async function fillPeriodUsage(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  if (!subscriptionId) return { error: "Missing subscription." };
+
+  const parsed = fillSchema.safeParse({ percent: formData.get("percent") || 90 });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const [sub] = await sql<
+    { user_id: string; api_id: string; quota: number; days: number }[]
+  >`
+    SELECT user_id, api_id, quota,
+           GREATEST(1, (CURRENT_DATE - COALESCE(current_period_start, CURRENT_DATE - 30)::date))::int AS days
+    FROM subscriptions WHERE id = ${subscriptionId} LIMIT 1
+  `;
+  if (!sub) return { error: "Subscription not found." };
+
+  const [store] = await sql<{ id: string }[]>`
+    SELECT id FROM stores WHERE subscription_id = ${subscriptionId} ORDER BY created_at LIMIT 1
+  `;
+
+  const target = Math.floor((sub.quota * parsed.data.percent) / 100);
+
+  const [period] = await sql<{ start: Date }[]>`
+    SELECT COALESCE(current_period_start, CURRENT_DATE - 30)::date AS start
+    FROM subscriptions WHERE id = ${subscriptionId}
+  `;
+
+  // Days already finished in the period. Today is excluded because usage for
+  // today lives in usage_events, which the reconciliation counts separately.
+  const startDay = new Date(period.start);
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  const days = Math.max(1, Math.round((today.getTime() - startDay.getTime()) / 86_400_000));
+
+  // Shape first, then scale, so the weekday curve never pushes the total past
+  // the target. Shaping inside the INSERT overshot by whatever the weights
+  // averaged out to.
+  const weights = Array.from({ length: days }, (_, i) => {
+    const d = new Date(startDay.getTime() + i * 86_400_000);
+    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
+    const ramp = 0.75 + (0.5 * i) / Math.max(1, days - 1);
+    return (weekend ? 0.6 : 1.15) * ramp;
+  });
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+
+  let allocated = 0;
+  const rows = weights.map((w, i) => {
+    const isLast = i === weights.length - 1;
+    // The last day takes the rounding remainder, so the sum is exact.
+    const calls = isLast
+      ? Math.max(0, target - allocated)
+      : Math.max(0, Math.round((target * w) / totalWeight));
+    allocated += calls;
+    return {
+      user_id: sub.user_id,
+      api_id: sub.api_id,
+      store_id: store?.id ?? null,
+      day: new Date(startDay.getTime() + i * 86_400_000).toISOString().slice(0, 10),
+      calls,
+      errors: Math.round(calls * 0.002),
+      avg_latency: 150,
+    };
+  });
+
+  await sql`
+    DELETE FROM usage_daily d USING subscriptions s
+    WHERE s.id = ${subscriptionId} AND d.user_id = s.user_id AND d.api_id = s.api_id
+      AND d.day >= COALESCE(s.current_period_start, CURRENT_DATE - 30)::date
+  `;
+
+  for (let i = 0; i < rows.length; i += 200) {
+    await sql`INSERT INTO usage_daily ${sql(rows.slice(i, i + 200))}`;
+  }
+
+  await reconcileUsed(subscriptionId);
+
+  const [after] = await sql<{ used: number; quota: number }[]>`
+    SELECT used, quota FROM subscriptions WHERE id = ${subscriptionId}
+  `;
+
+  revalidatePath(`/admin/users/${sub.user_id}`);
+  revalidatePath("/dashboard");
+
+  return {
+    ok: `Usage set to ${after.used.toLocaleString()} of ${after.quota.toLocaleString()} calls (${Math.round(
+      (after.used / after.quota) * 100
+    )}% of the allowance).`,
+  };
 }

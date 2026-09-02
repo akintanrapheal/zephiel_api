@@ -6,6 +6,8 @@ import {
   updateSubscription,
   generateDemoTraffic,
   reconcileUsage,
+  recordPastPayments,
+  fillPeriodUsage,
   clearDemoTraffic,
   setDemoTraffic,
 } from "@/server/actions/customers";
@@ -163,6 +165,42 @@ export function TrafficForm({
         </form>
         <Message state={state} />
       </div>
+    </div>
+  );
+}
+
+/** Backdated invoices and a quota level, for demonstration accounts. */
+export function BillingHistoryForm({ subscriptionId }: { subscriptionId: string }) {
+  const [payState, payAction] = useActionState<FormState, FormData>(recordPastPayments, null);
+  const [fillState, fillAction] = useActionState<FormState, FormData>(fillPeriodUsage, null);
+
+  return (
+    <div className="space-y-4">
+      <form action={payAction} className="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="subscriptionId" value={subscriptionId} />
+        <Field label="Past months to invoice" name="months" type="number" min="1" max="24"
+          defaultValue={3} className="w-44" />
+        <Field label="Paid by" name="method" defaultValue="card" className="w-36" />
+        <Submit>Record payments</Submit>
+        <Message state={payState} />
+      </form>
+      <p className="text-xs leading-6 text-muted">
+        Writes one paid invoice per past month at the current plan price. References are prefixed{" "}
+        <code className="font-mono">demo_</code> so they can never be mistaken for a real Paystack
+        transaction.
+      </p>
+
+      <form action={fillAction} className="flex flex-wrap items-end gap-3 border-t border-line pt-4">
+        <input type="hidden" name="subscriptionId" value={subscriptionId} />
+        <Field label="Fill this period to (%)" name="percent" type="number" min="1" max="100"
+          defaultValue={90} className="w-44" />
+        <Submit>Set usage</Submit>
+        <Message state={fillState} />
+      </form>
+      <p className="text-xs leading-6 text-muted">
+        Spreads usage across the days elapsed in the current period so the chart ramps rather than
+        spikes, then recalculates the quota bar from it.
+      </p>
     </div>
   );
 }

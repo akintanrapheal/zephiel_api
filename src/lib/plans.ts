@@ -61,9 +61,19 @@ export function formatPrice(amount: number) {
  * This was previously a flat 100 for everyone, which meant a free account
  * could connect a hundred stores and accrue a hundred billable units.
  */
-export const FREE_PLAN_STORE_LIMIT = 3;
-export const PAID_PLAN_STORE_LIMIT = 100;
+/** Used when a plan predates the store_limit column. */
+export const DEFAULT_FREE_STORE_LIMIT = 1;
+export const DEFAULT_PAID_STORE_LIMIT = 3;
 
-export function storeLimitFor(planPrice: number) {
-  return planPrice === 0 ? FREE_PLAN_STORE_LIMIT : PAID_PLAN_STORE_LIMIT;
+/**
+ * Storefronts a plan allows.
+ *
+ * Reads the plan's own allowance so tiers can differ; 0 means negotiated
+ * rather than fixed, which is Enterprise. Falls back to a price-based guess
+ * only for rows written before plans carried the column.
+ */
+export function storeLimitFor(planPrice: number, storeLimit?: number | null): number {
+  if (storeLimit === 0) return Number.POSITIVE_INFINITY;
+  if (typeof storeLimit === "number" && storeLimit > 0) return storeLimit;
+  return planPrice === 0 ? DEFAULT_FREE_STORE_LIMIT : DEFAULT_PAID_STORE_LIMIT;
 }
