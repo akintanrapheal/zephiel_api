@@ -9,6 +9,7 @@
  */
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import sharp from "sharp";
+import { ANNUAL_MONTHS_CHARGED } from "../src/lib/plans.ts";
 import postgres from "postgres";
 import { loadEnv } from "./env.mts";
 import { FREE_PLAN_STORE_LIMIT as FREE_STORE_LIMIT } from "../src/lib/plans.ts";
@@ -1112,6 +1113,85 @@ try {
     check("a mismatched amount does not activate the subscription", mismatch.status === "pending", mismatch.status);
 
     await sql`DELETE FROM users WHERE id = ${payer.id}`;
+
+    // --- what the interval actually buys ----------------------------------
+    // The charge and the period both follow the interval. Both were wrong once:
+    // an annual payment used to be billed a year and granted a month.
+    const chargedFor: Record<string, number> = {};
+
+    for (const interval of ["monthly", "annual"] as const) {
+      const email = `e2e_${interval}_${Date.now()}@zephiel.test`;
+      const c = sessionCookie(
+        await submit("/signup", { name: "Interval", email, password: "supersecret123" }, "", "$ACTION_")
+      );
+      const [who] = await sql<{ id: string }[]>`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
+
+      await submit(`/marketplace/${ipApi.slug}`, {
+        planId: paidTier.id, apiSlug: ipApi.slug, interval,
+      }, c);
+
+      const [charge] = await sql<{ amount: string; reference: string }[]>`
+        SELECT amount::text, reference FROM payments
+        WHERE user_id = ${who.id} AND status = 'pending' LIMIT 1
+      `;
+      const [tier] = await sql<{ price: string }[]>`
+        SELECT price::text FROM plans WHERE id = ${paidTier.id}
+      `;
+
+      chargedFor[interval] = Number(charge.amount);
+      check(`a ${interval} purchase creates a charge`, Number(charge.amount) > 0,
+        `charged ${charge.amount} for a ${tier.price}/mo plan`);
+
+      const evt2 = JSON.stringify({
+        event: "charge.success",
+        data: { reference: charge.reference, paid_at: new Date().toISOString() },
+      });
+      const sig2 = createHmac("sha512", process.env.PAYSTACK_SECRET_KEY ?? "").update(evt2).digest("hex");
+      await fetch(`${BASE}/api/paystack/webhook`, {
+        method: "POST", body: evt2,
+        headers: { "content-type": "application/json", "x-paystack-signature": sig2 },
+      });
+
+      const [granted] = await sql<{ status: string; interval: string; days: number; quota: number }[]>`
+        SELECT status, billing_interval AS interval, quota::int,
+               EXTRACT(DAY FROM (current_period_end - now()))::int AS days
+        FROM subscriptions WHERE user_id = ${who.id} LIMIT 1
+      `;
+      check(`a ${interval} payment activates the subscription`, granted.status === "active", granted.status);
+      check(`a ${interval} payment records the interval`, granted.interval === interval, granted.interval);
+      check(`a ${interval} payment grants ${interval === "annual" ? "a year" : "a month"}`,
+        interval === "annual" ? granted.days > 360 : granted.days > 27 && granted.days < 32,
+        `${granted.days} days`);
+      check(`a ${interval} payment applies the plan's quota`,
+        granted.quota === paidTier.quota, `${granted.quota} vs ${paidTier.quota}`);
+
+      // Renewal has to roll by the same interval it was sold on.
+      await sql`
+        UPDATE subscriptions SET current_period_end = now() - interval '1 day', used = 500
+        WHERE user_id = ${who.id}
+      `;
+      await sql`UPDATE plans SET price = 0 WHERE id = ${paidTier.id}`;
+      await fetch(`${BASE}/api/cron/usage-rollup`, {
+        headers: { authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
+      });
+      await sql`UPDATE plans SET price = ${tier.price} WHERE id = ${paidTier.id}`;
+
+      const [rolled] = await sql<{ days: number; used: number }[]>`
+        SELECT EXTRACT(DAY FROM (current_period_end - now()))::int AS days, used
+        FROM subscriptions WHERE user_id = ${who.id} LIMIT 1
+      `;
+      check(`a ${interval} renewal rolls by ${interval === "annual" ? "a year" : "a month"}`,
+        interval === "annual" ? rolled.days > 355 : rolled.days > 26 && rolled.days < 32,
+        `${rolled.days} days`);
+
+      await sql`DELETE FROM users WHERE id = ${who.id}`;
+    }
+
+    // The discount is the whole point of the annual option: twelve months of
+    // service for ten months of money.
+    check("a year costs ten months, not twelve",
+      Math.abs(chargedFor.annual - chargedFor.monthly * ANNUAL_MONTHS_CHARGED) < 0.01,
+      `annual ${chargedFor.annual}, monthly ${chargedFor.monthly}`);
   }
 
   // ------------------------------------------------- plan edits & limits --

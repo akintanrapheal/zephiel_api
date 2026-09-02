@@ -222,3 +222,29 @@ export async function getStoreActivity(userId: string, hours = 6) {
 
   return { buckets, byStore: Object.fromEntries(byStore) };
 }
+
+export type CallerOrigin = {
+  origin: string | null;
+  source: string;
+  calls: number;
+  lastCall: Date;
+};
+
+/**
+ * Which hosts have called this account's keys recently.
+ *
+ * Only covers the live event window (usage_events), which is deliberately
+ * short — rolled-up days keep totals, not per-caller detail. That is enough to
+ * answer "is my application reaching the gateway?", which is what this is for.
+ */
+export async function getCallerOrigins(userId: string, hours = 48): Promise<CallerOrigin[]> {
+  return sql<CallerOrigin[]>`
+    SELECT origin, source, COUNT(*)::int AS calls, MAX(created_at) AS "lastCall"
+    FROM usage_events
+    WHERE user_id = ${userId}
+      AND created_at >= now() - (${hours}::text || ' hours')::interval
+    GROUP BY origin, source
+    ORDER BY calls DESC
+    LIMIT 20
+  `;
+}

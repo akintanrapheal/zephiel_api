@@ -394,3 +394,17 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_start timestam
 UPDATE subscriptions SET current_period_start = current_period_end -
   (CASE WHEN billing_interval = 'annual' THEN interval '1 year' ELSE interval '1 month' END)
 WHERE current_period_start IS NULL AND current_period_end IS NOT NULL;
+
+-- Where a call came from, and whether it is real.
+--
+-- The gateway recorded no caller identity, and generated demonstration traffic
+-- was written to the same table with nothing marking it apart, so there was no
+-- way to answer "is this real traffic, and which application made it?" from
+-- the data. `source` defaults to 'gateway' because every row written before
+-- this column existed came from the gateway.
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS origin     text;
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS user_agent text;
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS source     text NOT NULL DEFAULT 'gateway';
+
+CREATE INDEX IF NOT EXISTS usage_events_origin_idx
+  ON usage_events(user_id, origin, created_at DESC);

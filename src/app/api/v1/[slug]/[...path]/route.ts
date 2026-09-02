@@ -2,6 +2,28 @@ import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { hashApiKey } from "@/lib/auth";
 
+/**
+ * The host that made the call, for answering "where is this traffic from?".
+ *
+ * Origin is set by browsers; Referer covers callers that send one; the Host
+ * header is the last resort for server-to-server callers that send neither.
+ * All three are attacker-controlled, so this is an attribution aid and never
+ * an authorisation input.
+ */
+function callerOrigin(request: Request): string | null {
+  const raw =
+    request.headers.get("origin") ??
+    request.headers.get("referer") ??
+    null;
+
+  if (!raw) return null;
+  try {
+    return new URL(raw).host.slice(0, 200);
+  } catch {
+    return raw.slice(0, 200);
+  }
+}
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -94,9 +116,11 @@ async function handle(
 
   const latency = Date.now() - started;
   await sql`
-    INSERT INTO usage_events (user_id, api_id, api_key_id, store_id, endpoint, method, status, latency_ms)
+    INSERT INTO usage_events (user_id, api_id, api_key_id, store_id, endpoint, method,
+                              status, latency_ms, origin, user_agent, source)
     VALUES (${key.user_id}, ${api.id}, ${key.id}, ${key.store_id}, ${`/${slug}${endpointPath}`},
-            ${request.method}, 200, ${latency})
+            ${request.method}, 200, ${latency}, ${callerOrigin(request)},
+            ${(request.headers.get("user-agent") ?? "").slice(0, 200) || null}, 'gateway')
   `;
 
   let body: unknown;

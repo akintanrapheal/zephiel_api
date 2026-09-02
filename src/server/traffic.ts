@@ -164,6 +164,8 @@ export async function generateTraffic(opts: {
           api_key_id: keyForStore.get(e.storeId) ?? accountKey,
           store_id: e.storeId,
           endpoint: `/multistore${endpoints[n % endpoints.length]}`,
+          // Marked so real gateway traffic can be told apart from this.
+          source: "demo",
           method: "GET",
           status: e.status,
           latency_ms: e.latency,
