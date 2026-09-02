@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Api } from "@/lib/types";
 import CodeSamples from "./CodeSamples";
-import PlanCard from "./PlanCard";
+import PlanCard, { planFeatureMatrix } from "./PlanCard";
 import BillingToggle from "./BillingToggle";
 import { isContactSales, type BillingInterval } from "@/lib/plans";
 import { cn } from "@/lib/utils";
@@ -170,6 +170,7 @@ export default function ApiTabs({
                   apiSlug={api.slug}
                   currentPlan={currentPlan}
                   interval={interval}
+                  matrix={planFeatureMatrix(api.plans)}
                 />
               ))}
             </div>

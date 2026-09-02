@@ -9,60 +9,56 @@ export const metadata: Metadata = {
   description: "Platform plans for Zephiel API — start free, scale to enterprise volume with one bill.",
 };
 
-const buildPlans = (n: number): Plan[] => [
-  {
-    name: "Free",
-    price: 0,
-    requests: "100 calls per API/mo",
-    rateLimit: "5 req/min",
-    features: [
-      `Access to all ${n} APIs`,
-      "1 project key",
-      "Community support",
-      "Basic usage analytics",
-    ],
-  },
-  {
-    name: "Developer",
-    price: 29,
-    requests: "50,000 calls/mo pooled",
-    rateLimit: "60 req/min",
-    features: [
-      "Pooled across every API",
-      "5 project keys",
-      "Email support",
-      "99.9% uptime SLA",
-      "Usage alerts",
-    ],
-  },
-  {
-    name: "Team",
-    price: 149,
-    requests: "500,000 calls/mo pooled",
-    rateLimit: "600 req/min",
-    features: [
-      "Unlimited project keys",
-      "Team seats & roles",
-      "Priority support",
-      "99.99% uptime SLA",
-      "Webhooks & audit log",
-    ],
-    popular: true,
-  },
-  {
-    name: "Enterprise",
-    price: 0,
-    requests: "Custom volume",
-    rateLimit: "Custom",
-    features: [
-      "Dedicated success manager",
-      "SSO / SAML & SCIM",
-      "Custom SLA, DPA, and BAA",
-      "Private regions available",
-      "Invoiced annual billing",
-    ],
-  },
+/**
+ * Platform plans, built cumulatively from one capability list.
+ *
+ * Each tier includes everything below it, which is what lets the cards show the
+ * same rows with a tick or a cross. Four disjoint lists cannot be compared.
+ */
+const platformCapabilities = (n: number): { label: string; from: number }[] => [
+  { label: `Access to all ${n} APIs`, from: 0 },
+  { label: "One key across every API", from: 0 },
+  { label: "JSON output format", from: 0 },
+  { label: "HTTPS encryption", from: 0 },
+  { label: "Community support", from: 0 },
+  { label: "Basic usage analytics", from: 0 },
+  { label: "Pooled calls across every API", from: 1 },
+  { label: "5 project keys", from: 1 },
+  { label: "Email support", from: 1 },
+  { label: "Usage alerts at 80% and 100%", from: 1 },
+  { label: "99.9% uptime SLA", from: 1 },
+  { label: "Unlimited project keys", from: 2 },
+  { label: "Team seats and roles", from: 2 },
+  { label: "Priority support", from: 2 },
+  { label: "Webhooks", from: 2 },
+  { label: "90-day audit log", from: 2 },
+  { label: "99.99% uptime SLA", from: 2 },
+  { label: "Dedicated success manager", from: 3 },
+  { label: "SSO / SAML and SCIM", from: 3 },
+  { label: "Custom SLA, DPA, and BAA", from: 3 },
+  { label: "Private regions available", from: 3 },
+  { label: "Unlimited audit log", from: 3 },
+  { label: "Invoiced annual billing", from: 3 },
 ];
+
+const platformShapes = [
+  { name: "Free", price: 0, requests: "100 calls per API/mo", rateLimit: "5 req/min" },
+  { name: "Developer", price: 29, requests: "50,000 calls/mo pooled", rateLimit: "60 req/min" },
+  { name: "Team", price: 149, requests: "500,000 calls/mo pooled", rateLimit: "600 req/min", popular: true },
+  { name: "Enterprise", price: 0, requests: "Custom volume", rateLimit: "Custom" },
+];
+
+const buildPlans = (n: number): Plan[] => {
+  const caps = platformCapabilities(n);
+  return platformShapes.map((shape, i) => ({
+    name: shape.name,
+    price: shape.price,
+    requests: shape.requests,
+    rateLimit: shape.rateLimit,
+    features: caps.filter((c) => c.from <= i).map((c) => c.label),
+    ...(shape.popular ? { popular: true } : {}),
+  }));
+};
 
 const buildComparison = (n: number): { feature: string; values: [string, string, string, string] }[] => [
   { feature: "APIs included", values: [`All ${n}`, `All ${n}`, `All ${n}`, `All ${n} + private`] },

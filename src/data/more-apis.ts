@@ -1,53 +1,10 @@
-import type { Api, Plan } from "@/lib/types";
+import type { Api } from "@/lib/types";
+import { tiers } from "./plan-tiers";
 
 /**
  * Second wave of listings. Kept in its own file so the original catalogue stays
  * readable; both are concatenated in src/data/apis.ts.
  */
-const tiers = (base: number, unit = "requests"): Plan[] => [
-  {
-    name: "Free",
-    price: 0,
-    requests: `100 ${unit}/mo`,
-    rateLimit: "5 req/min",
-    features: ["Community support", "Standard endpoints", "HTTPS + API key auth"],
-  },
-  {
-    name: "Starter",
-    price: base,
-    requests: `10,000 ${unit}/mo`,
-    rateLimit: "60 req/min",
-    features: ["Email support", "All endpoints", "99.9% uptime SLA", "Usage analytics"],
-  },
-  {
-    name: "Pro",
-    price: base * 4,
-    requests: `250,000 ${unit}/mo`,
-    rateLimit: "600 req/min",
-    features: [
-      "Priority support",
-      "Bulk + batch endpoints",
-      "99.99% uptime SLA",
-      "Webhooks",
-      "Custom rate limits",
-    ],
-    popular: true,
-  },
-  {
-    name: "Enterprise",
-    price: base * 14,
-    requests: `Unlimited ${unit}`,
-    rateLimit: "Custom",
-    features: [
-      "Dedicated success manager",
-      "Private deployment option",
-      "Custom SLA & DPA",
-      "SSO / SAML",
-      "Volume pricing",
-    ],
-  },
-];
-
 export const moreApis: Api[] = [
   {
     slug: "shipping-rates",

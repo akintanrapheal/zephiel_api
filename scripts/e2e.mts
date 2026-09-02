@@ -1291,6 +1291,40 @@ try {
   check("pricing page offers a billing period toggle", pricingHtml.includes("Billing period"));
 
   {
+    // Tiers are comparable only if every card shows the same rows, some ticked
+    // and some crossed. Four disjoint lists cannot be read across.
+    const ticks = (pricingHtml.match(/M4 12\.5l5 5L20 6\.5/g) ?? []).length;
+    const crosses = (pricingHtml.match(/M6 6l12 12M18 6L6 18/g) ?? []).length;
+    check("pricing cards show a tick-or-cross for every capability",
+      ticks > 0 && crosses > 0 && (ticks + crosses) % 4 === 0,
+      `${ticks} ticks, ${crosses} crosses`);
+    check("a lower tier is shown what it does not include", crosses >= ticks / 4,
+      `${crosses} crosses`);
+
+    // Every listing's tiers must be cumulative, or a cross would appear on a
+    // higher tier for something a lower one has.
+    const notCumulative = await sql<{ slug: string }[]>`
+      SELECT DISTINCT a.slug
+      FROM plans lo
+      JOIN plans hi ON hi.api_id = lo.api_id AND hi.sort_order = lo.sort_order + 1
+      JOIN apis a ON a.id = lo.api_id
+      WHERE NOT (lo.features <@ hi.features)
+    `;
+    check("every listing's tiers build cumulatively", notCumulative.length === 0,
+      notCumulative.map((r) => r.slug).join(", "));
+
+    const ladder = await sql<{ name: string; quota: number }[]>`
+      SELECT p.name, p.quota FROM plans p JOIN apis a ON a.id = p.api_id
+      WHERE a.slug = 'multistore' ORDER BY p.sort_order
+    `;
+    check("Multistore's free tier includes 5,000 calls",
+      ladder[0]?.quota === 5000, `${ladder[0]?.quota}`);
+    check("Multistore's allowance climbs with the tier",
+      ladder.slice(0, 3).every((p, i, arr) => i === 0 || p.quota > arr[i - 1].quota),
+      ladder.map((p) => `${p.name}:${p.quota}`).join(" "));
+  }
+
+  {
     // Enterprise is quoted, never sold. The control is hidden, but the form
     // post is reachable, and its quota is unlimited — so the refusal has to be
     // server-side.

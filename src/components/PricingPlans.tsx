@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Plan } from "@/lib/types";
 import type { BillingInterval } from "@/lib/plans";
 import BillingToggle from "./BillingToggle";
-import PlanCard from "./PlanCard";
+import PlanCard, { planFeatureMatrix } from "./PlanCard";
 
 /**
  * The platform tiers with a monthly/annual switch above them.
@@ -21,6 +21,7 @@ export default function PricingPlans({
   hrefs?: Record<string, string>;
 }) {
   const [interval, setInterval] = useState<BillingInterval>("monthly");
+  const matrix = planFeatureMatrix(plans);
 
   return (
     <div>
@@ -28,7 +29,7 @@ export default function PricingPlans({
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {plans.map((p) => (
-          <PlanCard key={p.name} plan={p} interval={interval} href={hrefs[p.name]} />
+          <PlanCard key={p.name} plan={p} interval={interval} href={hrefs[p.name]} matrix={matrix} />
         ))}
       </div>
     </div>
