@@ -407,3 +407,72 @@ export async function fillPeriodUsage(_prev: FormState, formData: FormData): Pro
     )}% of the allowance).`,
   };
 }
+
+const grantSchema = z.object({
+  stores: z.coerce.number().int().min(0).max(999),
+});
+
+/**
+ * Grant one account a storefront allowance of its own.
+ *
+ * Overrides the plan's, so a free-tier customer can be given room for another
+ * store without moving them onto a paid plan or raising the ceiling for
+ * everyone else on that plan. 0 clears the grant and returns them to the
+ * plan's allowance.
+ */
+export async function grantStoreAllowance(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  if (!subscriptionId) return { error: "Missing subscription." };
+
+  const parsed = grantSchema.safeParse({ stores: formData.get("stores") || 0 });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const granted = parsed.data.stores;
+
+  const [row] = await sql<{ user_id: string; plan_limit: number; plan_name: string }[]>`
+    UPDATE subscriptions s SET store_limit = ${granted === 0 ? null : granted}, updated_at = now()
+    FROM plans p WHERE p.id = s.plan_id AND s.id = ${subscriptionId}
+    RETURNING s.user_id, p.store_limit AS plan_limit, p.name AS plan_name
+  `;
+  if (!row) return { error: "Subscription not found." };
+
+  revalidatePath(`/admin/users/${row.user_id}`);
+  revalidatePath("/dashboard/stores");
+
+  return {
+    ok:
+      granted === 0
+        ? `Grant removed — back to the ${row.plan_name} allowance.`
+        : `This account can now connect ${granted} ${granted === 1 ? "store" : "stores"}.`,
+  };
+}
+
+/**
+ * Remove recorded payments for a subscription.
+ *
+ * Restricted to the demo_ references written by recordPastPayments: a real
+ * Paystack payment is the record of money that actually moved, and deleting it
+ * would leave an invoice the customer holds with nothing behind it.
+ */
+export async function clearPaymentHistory(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const subscriptionId = String(formData.get("subscriptionId") ?? "");
+  if (!subscriptionId) return;
+
+  const [sub] = await sql<{ user_id: string }[]>`
+    SELECT user_id FROM subscriptions WHERE id = ${subscriptionId} LIMIT 1
+  `;
+  if (!sub) return;
+
+  await sql`
+    DELETE FROM payments
+    WHERE subscription_id = ${subscriptionId} AND reference LIKE 'demo\_%'
+  `;
+
+  revalidatePath(`/admin/users/${sub.user_id}`);
+  revalidatePath("/admin/payments");
+  revalidatePath("/dashboard/billing");
+}

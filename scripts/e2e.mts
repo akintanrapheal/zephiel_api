@@ -1111,6 +1111,7 @@ try {
     `;
     check("a mismatched amount does not activate the subscription", mismatch.status === "pending", mismatch.status);
 
+    await sql`DELETE FROM payments WHERE user_id = ${payer.id}`;
     await sql`DELETE FROM users WHERE id = ${payer.id}`;
 
     // --- what the interval actually buys ----------------------------------
@@ -1183,6 +1184,7 @@ try {
         interval === "annual" ? rolled.days > 355 : rolled.days > 26 && rolled.days < 32,
         `${rolled.days} days`);
 
+      await sql`DELETE FROM payments WHERE user_id = ${who.id}`;
       await sql`DELETE FROM users WHERE id = ${who.id}`;
     }
 
@@ -1198,8 +1200,11 @@ try {
 
   {
     const [msApi] = await sql<{ id: string }[]>`SELECT id FROM apis WHERE slug = 'multistore' LIMIT 1`;
-    const [sandbox] = await sql<{ id: string; quota: number }[]>`
-      SELECT id, quota::int FROM plans WHERE api_id = ${msApi.id} AND name = 'Sandbox' LIMIT 1
+    const [sandbox] = await sql<
+      { id: string; quota: number; requests: string; features: string[]; store_limit: number }[]
+    >`
+      SELECT id, quota::int, requests, features, store_limit::int
+      FROM plans WHERE api_id = ${msApi.id} AND name = 'Sandbox' LIMIT 1
     `;
 
     // subscriptions.quota is a copy taken at subscribe time. Raising the plan
@@ -1211,10 +1216,13 @@ try {
       name: "Sandbox",
       price: "0",
       unit: "store",
-      requests: "3 stores, 9,000 calls/mo",
+      // Echo the plan's own content back: this check is about quota reaching
+      // existing subscribers, and rewriting the catalogue as a side effect
+      // broke the cumulative-tiers check that runs later in the same suite.
+      requests: sandbox.requests,
       rateLimit: "5 req/min",
       quota: String(sandbox.quota),
-      features: "Up to 3 connected storefronts\nCommunity support",
+      features: sandbox.features.join("\n"),
     }, adminCookie, `value="${sandbox.id}"`);
 
     const [propagated] = await sql<{ stale: string }[]>`
@@ -1281,10 +1289,54 @@ try {
       SELECT p.name, p.store_limit::int FROM plans p JOIN apis a ON a.id = p.api_id
       WHERE a.slug = 'multistore' ORDER BY p.sort_order
     `;
-    check("Multistore tiers carry their own store allowance",
-      limits[0]?.store_limit === 1 && limits[1]?.store_limit === 3 &&
-        limits[2]?.store_limit === 5 && limits[3]?.store_limit === 0,
+    // Only the free tier has a ceiling; paid tiers bill per store, so capping
+    // the count would be charging for something and refusing to sell it.
+    check("only the free tier caps connected stores",
+      limits[0]?.store_limit === 5 && limits.slice(1).every((l) => l.store_limit === 0),
       limits.map((l) => `${l.name}:${l.store_limit}`).join(" "));
+
+    // An allowance granted to one account overrides its plan's.
+    const [grantSub] = await sql<{ id: string }[]>`
+      SELECT id FROM subscriptions WHERE user_id = ${freeUser.id} LIMIT 1
+    `;
+    await submit(`/admin/users/${freeUser.id}`, {
+      subscriptionId: grantSub.id, stores: String(freeStoreLimit + 2),
+    }, adminCookie, "Save allowance");
+
+    for (let i = 1; i <= 2; i++) {
+      await submit("/dashboard/stores", { name: `Granted ${i}`, platform: "shopify" },
+        freeCookie, 'name="platform"');
+    }
+    const [afterGrant] = await sql<{ c: string }[]>`
+      SELECT COUNT(*)::text AS c FROM stores WHERE user_id = ${freeUser.id}
+    `;
+    check("an admin grant lets one account exceed its plan allowance",
+      Number(afterGrant.c) === freeStoreLimit + 2, `${afterGrant.c} connected`);
+
+    await submit(`/admin/users/${freeUser.id}`, { subscriptionId: grantSub.id, stores: "0" },
+      adminCookie, "Save allowance");
+    const [cleared] = await sql<{ store_limit: number | null }[]>`
+      SELECT store_limit FROM subscriptions WHERE id = ${grantSub.id}
+    `;
+    check("clearing the grant returns the account to its plan", cleared.store_limit === null,
+      `${cleared.store_limit}`);
+
+    // Clearing history must take the records an operator created, and nothing
+    // else: a real payment is the record that money moved.
+    await sql`
+      INSERT INTO payments (user_id, subscription_id, reference, amount, currency, status, paid_at)
+      VALUES (${freeUser.id}, ${grantSub.id}, ${`demo_${Date.now()}`}, 100, 'NGN', 'success', now()),
+             (${freeUser.id}, ${grantSub.id}, ${`zph_keep_${Date.now()}`}, 200, 'NGN', 'success', now())
+    `;
+    await submit(`/admin/users/${freeUser.id}`, { subscriptionId: grantSub.id },
+      adminCookie, "Clear recorded payments");
+    const remaining = await sql<{ reference: string }[]>`
+      SELECT reference FROM payments WHERE subscription_id = ${grantSub.id}
+    `;
+    check("clearing history removes the recorded payments",
+      !remaining.some((r) => r.reference.startsWith("demo_")));
+    check("clearing history keeps real Paystack payments",
+      remaining.some((r) => r.reference.startsWith("zph_")), `${remaining.length} left`);
 
     const storesHtml = await (await fetch(`${BASE}/dashboard/stores`, { headers: { cookie: freeCookie } })).text();
     check("free plan is told its store allowance rather than a $0 bill",
@@ -1506,7 +1558,10 @@ try {
       check("each invoice covers a different month",
         new Set(invoices.map((i) => new Date(i.period_start).getUTCMonth())).size === 3);
 
-      // Filling the period has to land on the number it was asked for.
+      // Filling the period has to land on the number it was asked for. The
+      // account has live events from the gateway checks above, and those count
+      // toward the allowance on top of the days the fill writes.
+      await sql`DELETE FROM usage_events WHERE user_id = ${user.id}`;
       await submit(`/admin/users/${user.id}`, { subscriptionId: qSub.id, percent: "94" },
         adminCookie, "Set usage");
       const [filled] = await sql<{ used: number; quota: number }[]>`
@@ -1655,6 +1710,13 @@ try {
   // Matching on the fixture prefixes rather than this run's own values also
   // sweeps up anything an earlier crashed run left behind.
   await sql`DELETE FROM apis WHERE slug LIKE 'e2e-api-%'`;
+
+  // Orphaned by an interrupted run: no owner, no subscription, never settled.
+  await sql`
+    DELETE FROM payments
+    WHERE user_id IS NULL AND subscription_id IS NULL AND status = 'pending'
+      AND created_at < now() - interval '1 hour'
+  `;
 
   // Payments before users: payments.user_id is ON DELETE SET NULL, so removing
   // the fixture users first orphans their payment rows instead of taking them,

@@ -413,3 +413,8 @@ CREATE INDEX IF NOT EXISTS usage_events_origin_idx
 -- which is negotiated). This used to be derived from whether the plan was
 -- free, so every paid tier shared one limit and the tiers could not differ.
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS store_limit integer NOT NULL DEFAULT 0;
+
+-- A storefront allowance granted to one account, overriding its plan's.
+-- Lets an operator extend a free trial by a store without moving the customer
+-- onto a paid plan or changing the plan for everyone on it.
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS store_limit integer;

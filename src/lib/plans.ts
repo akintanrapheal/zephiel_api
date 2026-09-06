@@ -72,8 +72,14 @@ export const DEFAULT_PAID_STORE_LIMIT = 3;
  * rather than fixed, which is Enterprise. Falls back to a price-based guess
  * only for rows written before plans carried the column.
  */
-export function storeLimitFor(planPrice: number, storeLimit?: number | null): number {
-  if (storeLimit === 0) return Number.POSITIVE_INFINITY;
-  if (typeof storeLimit === "number" && storeLimit > 0) return storeLimit;
+export function storeLimitFor(
+  planPrice: number,
+  storeLimit?: number | null,
+  /** A grant on the subscription itself, which takes precedence. */
+  override?: number | null
+): number {
+  const limit = override ?? storeLimit;
+  if (limit === 0) return Number.POSITIVE_INFINITY;
+  if (typeof limit === "number" && limit > 0) return limit;
   return planPrice === 0 ? DEFAULT_FREE_STORE_LIMIT : DEFAULT_PAID_STORE_LIMIT;
 }

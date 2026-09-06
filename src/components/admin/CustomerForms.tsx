@@ -8,6 +8,8 @@ import {
   reconcileUsage,
   recordPastPayments,
   fillPeriodUsage,
+  grantStoreAllowance,
+  clearPaymentHistory,
   clearDemoTraffic,
   setDemoTraffic,
 } from "@/server/actions/customers";
@@ -184,6 +186,13 @@ export function BillingHistoryForm({ subscriptionId }: { subscriptionId: string 
         <Submit>Record payments</Submit>
         <Message state={payState} />
       </form>
+
+      <form action={clearPaymentHistory}>
+        <input type="hidden" name="subscriptionId" value={subscriptionId} />
+        <button className="text-xs font-medium text-rose-600 hover:underline">
+          Clear recorded payments
+        </button>
+      </form>
       <p className="text-xs leading-6 text-muted">
         Writes one paid invoice per past month at the current plan price. References are prefixed{" "}
         <code className="font-mono">demo_</code> so they can never be mistaken for a real Paystack
@@ -202,5 +211,41 @@ export function BillingHistoryForm({ subscriptionId }: { subscriptionId: string 
         spikes, then recalculates the quota bar from it.
       </p>
     </div>
+  );
+}
+
+/** A storefront allowance for this account alone, overriding its plan's. */
+export function StoreAllowanceForm({
+  subscriptionId,
+  granted,
+  planLimit,
+  planName,
+}: {
+  subscriptionId: string;
+  granted: number | null;
+  planLimit: number;
+  planName: string;
+}) {
+  const [state, action] = useActionState<FormState, FormData>(grantStoreAllowance, null);
+
+  return (
+    <form action={action} className="space-y-3">
+      <p className="text-xs leading-6 text-muted">
+        The {planName} plan allows{" "}
+        <span className="font-medium text-ink">
+          {planLimit === 0 ? "unlimited storefronts" : `${planLimit} storefronts`}
+        </span>
+        . A grant here applies to this account only — use it to give one customer more room without
+        moving them onto a paid plan. Zero removes the grant.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="subscriptionId" value={subscriptionId} />
+        <Field label="Stores this account may connect" name="stores" type="number" min="0" max="999"
+          defaultValue={granted ?? 0} className="w-56" />
+        <Submit>Save allowance</Submit>
+        <Message state={state} />
+      </div>
+    </form>
   );
 }

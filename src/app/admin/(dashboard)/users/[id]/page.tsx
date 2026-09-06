@@ -4,7 +4,7 @@ import { sql } from "@/lib/db";
 import { formatCurrency } from "@/lib/paystack";
 import { requireAdmin } from "@/lib/auth";
 import PageHeader, { Card } from "@/components/admin/PageHeader";
-import { JoinDateForm, SubscriptionForm, TrafficForm, BillingHistoryForm } from "@/components/admin/CustomerForms";
+import { JoinDateForm, SubscriptionForm, TrafficForm, BillingHistoryForm, StoreAllowanceForm } from "@/components/admin/CustomerForms";
 import { deleteSubscription } from "@/server/actions/customers";
 import { compact } from "@/lib/utils";
 
@@ -32,15 +32,20 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       used: number;
       demo_traffic: boolean;
       quota: number;
+      store_limit: number | null;
+      plan_store_limit: number | null;
+      plan_name: string;
       starts: Date | null;
       ends: Date | null;
     }[]
   >`
     SELECT s.id, s.api_id, a.name AS api_name, s.plan_id, s.status, s.units, s.used, s.quota, s.demo_traffic,
+           s.store_limit, p.store_limit AS plan_store_limit, p.name AS plan_name,
            s.current_period_start AS starts,
            s.current_period_end AS ends
     FROM subscriptions s
     JOIN apis a ON a.id = s.api_id
+    JOIN plans p ON p.id = s.plan_id
     WHERE s.user_id = ${id}
     ORDER BY a.name
   `;
@@ -120,6 +125,20 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 .filter((p) => p.api_id === s.api_id)
                 .map((p) => ({ id: p.id, name: p.name, price: Number(p.price), unit: p.unit }))}
             />
+
+            <div className="mt-5 border-t border-line pt-5">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Store allowance
+              </h3>
+              <div className="mt-3">
+                <StoreAllowanceForm
+                  subscriptionId={s.id}
+                  granted={s.store_limit}
+                  planLimit={s.plan_store_limit ?? 0}
+                  planName={s.plan_name}
+                />
+              </div>
+            </div>
 
             <div className="mt-5 border-t border-line pt-5">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
