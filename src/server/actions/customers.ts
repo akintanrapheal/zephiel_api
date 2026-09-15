@@ -6,7 +6,7 @@ import { z } from "zod";
 import { sql } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { generateTraffic, clearTraffic } from "@/server/traffic";
-import { reconcileUsed } from "@/server/usage-maintenance";
+import { reconcileUsed, usageThisPeriod } from "@/server/usage-maintenance";
 import type { FormState } from "./admin";
 
 const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
@@ -86,9 +86,21 @@ export async function updateSubscription(_prev: FormState, formData: FormData): 
       quota   = ${plan.quota},
       status  = ${parsed.data.status},
       units   = ${parsed.data.units},
-      used    = ${parsed.data.used},
       current_period_start = ${starts ? `${starts}T00:00:00Z` : null},
       current_period_end = ${ends ? `${ends}T23:59:59Z` : null},
+      updated_at = now()
+    WHERE id = ${id}
+  `;
+
+  // "Calls used" is an admin baseline: store it as an offset over the real calls this
+  // period so the typed value sticks and future calls count up from it (survives the
+  // nightly reconcile, which now computes used = used_offset + real calls). Done AFTER the
+  // period update so the offset is measured against the correct (new) period window.
+  const real = await usageThisPeriod(id);
+  await sql`
+    UPDATE subscriptions SET
+      used_offset = ${parsed.data.used - real},
+      used = LEAST(${plan.quota}, ${parsed.data.used}),
       updated_at = now()
     WHERE id = ${id}
   `;
@@ -97,7 +109,7 @@ export async function updateSubscription(_prev: FormState, formData: FormData): 
     SELECT user_id FROM subscriptions WHERE id = ${id} LIMIT 1
   `;
 
-  // Moving the period changes which calls count against the allowance.
+  // Confirm used = used_offset + real calls (== the typed value) via the same formula.
   await reconcileUsed(id);
 
   revalidatePath(`/admin/users/${row?.user_id ?? ""}`);
