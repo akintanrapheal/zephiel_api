@@ -61,6 +61,7 @@ export async function processRenewals() {
   const rolled = await sql<{ id: string }[]>`
     UPDATE subscriptions s
     SET used = 0,
+        used_offset = 0,   -- new period → clear any admin-set usage baseline
         -- Roll forward by the period the subscription is actually billed on,
         -- so an annual free plan does not reset twelve times a year. The period
         -- that just closed becomes the start of the next one.
@@ -290,7 +291,7 @@ export async function topUpIntraday(userId: string, apiId: string) {
 export async function reconcileUsed(subscriptionId?: string) {
   const rows = await sql<{ id: string }[]>`
     UPDATE subscriptions s SET
-      used = LEAST(s.quota, (
+      used = LEAST(s.quota, GREATEST(0, s.used_offset + (
         COALESCE((
           SELECT SUM(d.calls) FROM usage_daily d
           WHERE d.user_id = s.user_id AND d.api_id = s.api_id
@@ -307,13 +308,43 @@ export async function reconcileUsed(subscriptionId?: string) {
             AND e.created_at >= CURRENT_DATE
             AND e.created_at >= COALESCE(s.current_period_start, e.created_at)
         ), 0)
-      ))::int,
+      )))::int,
       updated_at = now()
     WHERE s.current_period_end IS NOT NULL
       AND (${subscriptionId ?? null}::uuid IS NULL OR s.id = ${subscriptionId ?? null}::uuid)
     RETURNING s.id
   `;
   return { reconciled: rows.length };
+}
+
+/**
+ * Real calls recorded for a subscription in its current billing period (rolled-up
+ * finished days + live events today) — the same figure reconcileUsed counts. Used
+ * by the admin "Calls used" save to derive the offset so the typed value sticks.
+ */
+export async function usageThisPeriod(subscriptionId: string): Promise<number> {
+  const [row] = await sql<{ calls: number }[]>`
+    SELECT (
+      COALESCE((
+        SELECT SUM(d.calls) FROM usage_daily d
+        WHERE d.user_id = s.user_id AND d.api_id = s.api_id
+          AND d.day >= COALESCE(
+            s.current_period_start,
+            s.current_period_end - CASE WHEN s.billing_interval = 'annual'
+              THEN interval '1 year' ELSE interval '1 month' END
+          )::date
+          AND d.day < CURRENT_DATE
+      ), 0)
+      + COALESCE((
+        SELECT COUNT(*) FROM usage_events e
+        WHERE e.user_id = s.user_id AND e.api_id = s.api_id
+          AND e.created_at >= CURRENT_DATE
+          AND e.created_at >= COALESCE(s.current_period_start, e.created_at)
+      ), 0)
+    )::int AS calls
+    FROM subscriptions s WHERE s.id = ${subscriptionId} LIMIT 1
+  `;
+  return row?.calls ?? 0;
 }
 
 /**

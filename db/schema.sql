@@ -395,6 +395,11 @@ UPDATE subscriptions SET current_period_start = current_period_end -
   (CASE WHEN billing_interval = 'annual' THEN interval '1 year' ELSE interval '1 month' END)
 WHERE current_period_start IS NULL AND current_period_end IS NOT NULL;
 
+-- Admin-set usage baseline. `used` is reconciled as used_offset + real calls this period, so a value
+-- typed into the admin "Calls used" field sticks and future calls count up from it (offset may be
+-- negative to set a value below current real usage). Reset to 0 on renewal.
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS used_offset integer NOT NULL DEFAULT 0;
+
 -- Where a call came from, and whether it is real.
 --
 -- The gateway recorded no caller identity, and generated demonstration traffic
