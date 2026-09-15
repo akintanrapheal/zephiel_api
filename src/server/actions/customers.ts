@@ -97,10 +97,14 @@ export async function updateSubscription(_prev: FormState, formData: FormData): 
   // nightly reconcile, which now computes used = used_offset + real calls). Done AFTER the
   // period update so the offset is measured against the correct (new) period window.
   const real = await usageThisPeriod(id);
+  // Compute the clamp in JS: LEAST() over two bind parameters makes Postgres infer a text result
+  // (nothing anchors their type), and assigning that to the integer `used` column errors. A single
+  // pre-computed value is inferred as integer from the column instead.
+  const usedClamped = Math.min(plan.quota, parsed.data.used);
   await sql`
     UPDATE subscriptions SET
       used_offset = ${parsed.data.used - real},
-      used = LEAST(${plan.quota}, ${parsed.data.used}),
+      used = ${usedClamped},
       updated_at = now()
     WHERE id = ${id}
   `;
