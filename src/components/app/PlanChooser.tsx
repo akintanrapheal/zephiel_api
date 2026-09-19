@@ -11,6 +11,7 @@ import {
   isContactSales,
   priceFor,
   formatPrice,
+  billableStoreUnits,
   ANNUAL_DISCOUNT_PERCENT,
   type BillingInterval,
 } from "@/lib/plans";
@@ -54,7 +55,7 @@ export default function PlanChooser({
   );
 
   const current = plans.find((p) => p.name === subscription.planName);
-  const currentMonthly = (current?.price ?? 0) * (current?.unit ? subscription.units : 1);
+  const currentMonthly = (current?.price ?? 0) * billableStoreUnits(current?.unit, subscription.units);
 
   // Formatted in UTC on purpose. The period end is stored as the last instant
   // of its day in UTC, so rendering it in the viewer's zone showed the next
@@ -117,14 +118,14 @@ export default function PlanChooser({
                   <Link href="/dashboard/stores" className="font-medium text-brand-600 hover:underline">
                     Stores
                   </Link>{" "}
-                  page — the count follows the stores you connect.
+                  page — the count follows the stores you connect. The first store is included free.
                 </>
               ) : (
                 <>
                   <span className="font-semibold text-ink">
-                    ${((current?.price ?? 0) * units).toLocaleString()}/mo
+                    ${((current?.price ?? 0) * billableStoreUnits(subscription.planUnit, units)).toLocaleString()}/mo
                   </span>{" "}
-                  at {units} {subscription.planUnit}s. Choose a plan below to apply it.
+                  at {units} {subscription.planUnit}s (first store free). Choose a plan below to apply it.
                 </>
               )}
             </p>
@@ -146,7 +147,7 @@ export default function PlanChooser({
       <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         {plans.map((p) => {
           const isCurrent = p.name === subscription.planName;
-          const billableUnits = p.unit ? units : 1;
+          const billableUnits = billableStoreUnits(p.unit, units);
           const quoted = isContactSales(p.name);
           const periodTotal = priceFor(p.price, interval) * billableUnits;
           const isUpgrade = p.quota > subscription.quota;

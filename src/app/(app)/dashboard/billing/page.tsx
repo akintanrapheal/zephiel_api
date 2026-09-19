@@ -6,6 +6,7 @@ import { getPaystackConfig } from "@/lib/paystack";
 import PlanChooser from "@/components/app/PlanChooser";
 import { compact } from "@/lib/utils";
 import { formatCurrency } from "@/lib/paystack";
+import { billableStoreUnits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Billing" };
@@ -59,7 +60,7 @@ export default async function BillingPage() {
   `;
 
   const monthlyTotal = active.reduce(
-    (sum, s) => sum + s.planPrice * (s.planUnit ? s.units : 1),
+    (sum, s) => sum + s.planPrice * billableStoreUnits(s.planUnit, s.units),
     0
   );
 

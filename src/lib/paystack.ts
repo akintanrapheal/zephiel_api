@@ -74,6 +74,41 @@ export async function isConfigured() {
   return Boolean((await getPaystackConfig()).secretKey);
 }
 
+// Live USD→NGN, looked up at charge time so the naira amount tracks the real
+// rate instead of a stale static setting (which can silently over- or
+// under-charge). Cached for an hour to avoid a lookup per checkout, and ALWAYS
+// falls back to the configured rate if the source is slow or unreachable — a
+// payment must never fail because an FX API blipped.
+type FxCache = { rate: number; at: number };
+declare global {
+  // eslint-disable-next-line no-var
+  var __zephielFx: FxCache | undefined;
+}
+const FX_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+export async function getLiveUsdToNgn(fallback: number): Promise<number> {
+  const cached = globalThis.__zephielFx;
+  if (cached && Date.now() - cached.at < FX_TTL_MS) return cached.rate;
+  try {
+    // open.er-api.com is free, keyless, and covers NGN. Mid-market reference rate.
+    const res = await fetch("https://open.er-api.com/v6/latest/USD", {
+      signal: AbortSignal.timeout(6000),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { rates?: Record<string, number> };
+      const rate = Number(data?.rates?.NGN);
+      if (Number.isFinite(rate) && rate > 0) {
+        globalThis.__zephielFx = { rate, at: Date.now() };
+        return rate;
+      }
+    }
+  } catch {
+    /* unreachable/slow — fall back to the configured rate below */
+  }
+  return fallback;
+}
+
 async function requireSecretKey() {
   const { secretKey } = await getPaystackConfig();
   if (!secretKey) {
