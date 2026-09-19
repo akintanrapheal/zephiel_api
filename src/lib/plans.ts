@@ -35,6 +35,18 @@ export function priceFor(monthlyPrice: number, interval: BillingInterval) {
   return interval === "annual" ? monthlyPrice * ANNUAL_MONTHS_CHARGED : monthlyPrice;
 }
 
+/**
+ * Billable store units for a per-store plan. The first connected store is
+ * included free, so a customer pays only for each store beyond the first
+ * (e.g. 5 connected stores → 4 billable). Non-per-store plans always bill as 1.
+ * This is the single source of truth for the "one store free" rule — every
+ * surface that prices a per-store plan runs the connected-store count through it.
+ */
+export function billableStoreUnits(unit: string | null | undefined, connectedStores: number): number {
+  if (!unit) return 1;
+  return Math.max(0, connectedStores - 1);
+}
+
 /** The end of the period being paid for, from now. */
 export function periodEndFor(interval: BillingInterval, from = new Date()) {
   const d = new Date(from);

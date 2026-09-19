@@ -5,13 +5,14 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth";
-import { getPaystackConfig, initializeTransaction, toSubunits } from "@/lib/paystack";
+import { getPaystackConfig, initializeTransaction, toSubunits, getLiveUsdToNgn } from "@/lib/paystack";
 import { appUrl } from "@/lib/app-url";
 import {
   isContactSales,
   isBillingInterval,
   priceFor,
   periodEndFor,
+  billableStoreUnits,
   type BillingInterval,
 } from "@/lib/plans";
 
@@ -24,7 +25,6 @@ export async function subscribe(formData: FormData) {
   const user = await getCurrentUser();
   const planId = String(formData.get("planId") ?? "");
   const apiSlug = String(formData.get("apiSlug") ?? "");
-  const units = Math.max(1, Number(formData.get("units") ?? 1) || 1);
 
   const rawInterval = String(formData.get("interval") ?? "monthly");
   const interval: BillingInterval = isBillingInterval(rawInterval) ? rawInterval : "monthly";
@@ -48,15 +48,29 @@ export async function subscribe(formData: FormData) {
 
   const monthly = Number(plan.price);
   const price = priceFor(monthly, interval);
-  const billableUnits = plan.unit ? units : 1;
 
-  // --- free plan: activate straight away -----------------------------------
-  if (price === 0) {
+  // Per-store plans bill the ACTUAL number of connected stores, with the first
+  // store included free (see billableStoreUnits). The count is read server-side
+  // from the live store list so the charge always matches reality and can't be
+  // driven from the form. `units` on the subscription stores the real connected
+  // count (for display); pricing multiplies by the billable count.
+  let connectedStores = 1;
+  if (plan.unit) {
+    const [row] = await sql<{ n: number }[]>`
+      SELECT COUNT(*)::int AS n FROM stores WHERE user_id = ${user.id}
+    `;
+    connectedStores = Math.max(1, row?.n ?? 1);
+  }
+  const billableUnits = billableStoreUnits(plan.unit, connectedStores);
+  const chargeTotal = price * billableUnits;
+
+  // --- free plan (or a per-store plan fully covered by the free store): activate now ---
+  if (chargeTotal === 0) {
     await sql`
       INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units,
                                  billing_interval, current_period_end)
       VALUES (${user.id}, ${plan.api_id}, ${plan.id}, 'active', ${plan.quota},
-              ${billableUnits}, ${interval}, ${periodEndFor(interval)})
+              ${connectedStores}, ${interval}, ${periodEndFor(interval)})
       ON CONFLICT (user_id, api_id) DO UPDATE
         SET plan_id = EXCLUDED.plan_id, status = 'active', quota = EXCLUDED.quota,
             units = EXCLUDED.units, billing_interval = EXCLUDED.billing_interval,
@@ -73,7 +87,11 @@ export async function subscribe(formData: FormData) {
     redirect(`/marketplace/${apiSlug}?error=payments-unconfigured`);
   }
 
-  const amount = toSubunits(price * billableUnits, paystack);
+  // Convert to the charge currency using the LIVE USD→NGN rate at this moment
+  // (falls back to the configured rate if the FX lookup is unavailable), so the
+  // naira amount reflects today's dollar and we don't over- or under-charge.
+  const liveRate = await getLiveUsdToNgn(paystack.usdToNgn);
+  const amount = toSubunits(chargeTotal, { currency: paystack.currency, usdToNgn: liveRate });
 
   // An existing subscription is left exactly as it is until the money clears.
   // Flipping it to 'pending' here revoked the customer's access the moment
@@ -91,7 +109,7 @@ export async function subscribe(formData: FormData) {
       INSERT INTO subscriptions (user_id, api_id, plan_id, status, quota, units,
                                  billing_interval, current_period_end)
       VALUES (${user.id}, ${plan.api_id}, ${plan.id}, 'pending', ${plan.quota},
-              ${billableUnits}, ${interval}, NULL)
+              ${connectedStores}, ${interval}, NULL)
       RETURNING id
     `;
     subscriptionId = created.id;
