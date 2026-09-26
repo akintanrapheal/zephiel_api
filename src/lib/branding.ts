@@ -14,6 +14,10 @@ export type Branding = {
   /** Registered address, shown in the email footer (like Anthropic's). */
   companyAddress: string;
   supportEmail: string;
+  /** Privacy policy URL for the footer's "Help · Privacy" links. */
+  privacyUrl: string;
+  /** Social profile links shown as small text links in the footer. */
+  socials: { label: string; url: string }[];
 };
 
 /** Sensible defaults so a fresh install is already branded before anyone edits. */
@@ -27,6 +31,8 @@ export function defaultBranding(): Branding {
     companyName: "Zephiel API",
     companyAddress: "",
     supportEmail: "support@zephiel.com",
+    privacyUrl: "",
+    socials: [],
   };
 }
 
@@ -43,6 +49,17 @@ export async function getBranding(): Promise<Branding> {
   const companyName =
     settings.company_name || settings.platform_name || d.companyName;
 
+  const socials = (
+    [
+      ["X", settings.social_x],
+      ["LinkedIn", settings.social_linkedin],
+      ["Instagram", settings.social_instagram],
+      ["YouTube", settings.social_youtube],
+    ] as const
+  )
+    .filter(([, url]) => !!url && /^https?:\/\//i.test(url))
+    .map(([label, url]) => ({ label, url: url as string }));
+
   return {
     logoUrl: settings.brand_logo_url || d.logoUrl,
     color: isHexColor(settings.brand_color) ? settings.brand_color! : d.color,
@@ -50,6 +67,8 @@ export async function getBranding(): Promise<Branding> {
     companyName,
     companyAddress: settings.company_address || d.companyAddress,
     supportEmail: settings.support_email || d.supportEmail,
+    privacyUrl: settings.privacy_url || d.privacyUrl,
+    socials,
   };
 }
 
@@ -66,6 +85,8 @@ export function emailBrand(brand: Branding) {
     companyName: brand.companyName,
     companyAddress: brand.companyAddress,
     supportEmail: brand.supportEmail,
+    privacyUrl: brand.privacyUrl,
+    socials: brand.socials,
   };
 }
 

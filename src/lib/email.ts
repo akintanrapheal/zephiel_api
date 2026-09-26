@@ -85,6 +85,8 @@ export type EmailBrand = {
   companyName?: string;
   companyAddress?: string;
   supportEmail?: string;
+  privacyUrl?: string;
+  socials?: { label: string; url: string }[];
 };
 
 /**
@@ -111,6 +113,8 @@ export function emailShell(opts: {
   const company = opts.brand?.companyName ?? "Zephiel API";
   const address = opts.brand?.companyAddress?.trim();
   const support = opts.brand?.supportEmail?.trim();
+  const privacyUrl = opts.brand?.privacyUrl?.trim();
+  const socials = (opts.brand?.socials ?? []).filter((s) => s.url);
 
   const rows = (opts.rows ?? [])
     .map(
@@ -148,13 +152,32 @@ export function emailShell(opts: {
     : `<div style="font-size:17px;font-weight:700;color:#0f172a;">${escapeHtml(company)}</div>`;
 
   const footerLine = opts.footer ?? `You are receiving this because you have an account on ${company}.`;
+
+  // "Help · Privacy" links.
+  const helpLinks = [
+    support ? `<a href="mailto:${escapeHtml(support)}" style="color:#94a3b8;text-decoration:none;">Help</a>` : "",
+    privacyUrl ? `<a href="${escapeHtml(privacyUrl)}" style="color:#94a3b8;text-decoration:none;">Privacy</a>` : "",
+  ].filter(Boolean);
+
+  const socialLinks = socials
+    .map(
+      (s) =>
+        `<a href="${escapeHtml(s.url)}" style="color:#94a3b8;text-decoration:none;font-weight:600;">${escapeHtml(s.label)}</a>`
+    )
+    .join('<span style="color:#cbd5e1;"> · </span>');
+
+  const year = new Date().getFullYear();
+
   const footerBits = [
+    `<div style="height:1px;background:#e6eaf1;margin:0 0 20px;"></div>`,
     `<div style="font-weight:600;color:#475569;">${escapeHtml(company)}</div>`,
     address ? `<div style="margin-top:4px;">${escapeHtml(address).replace(/\n/g, "<br>")}</div>` : "",
-    support
-      ? `<div style="margin-top:8px;"><a href="mailto:${escapeHtml(support)}" style="color:#94a3b8;text-decoration:underline;">Help</a></div>`
+    helpLinks.length
+      ? `<div style="margin-top:10px;">${helpLinks.join('<span style="color:#cbd5e1;"> · </span>')}</div>`
       : "",
-    `<div style="margin-top:10px;">${escapeHtml(footerLine)}</div>`,
+    socialLinks ? `<div style="margin-top:10px;">${socialLinks}</div>` : "",
+    `<div style="margin-top:14px;color:#b6c0cd;">© ${year} ${escapeHtml(company)}. All rights reserved.</div>`,
+    `<div style="margin-top:6px;color:#b6c0cd;">${escapeHtml(footerLine)}</div>`,
   ]
     .filter(Boolean)
     .join("");
@@ -162,19 +185,17 @@ export function emailShell(opts: {
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:18px;border:1px solid #e6eaf1;">
-    <tr><td style="padding:40px 40px 36px;">
-      <div style="text-align:center;margin-bottom:28px;">${brandmark}</div>
+    <tr><td style="padding:40px 40px 32px;">
+      <div style="text-align:center;margin-bottom:32px;">${brandmark}</div>
       <h1 style="margin:0;font-size:26px;line-height:1.25;font-weight:700;color:#0f172a;letter-spacing:-0.4px;">${escapeHtml(opts.heading)}</h1>
       ${introHtml}
       ${rows ? `<table role="presentation" width="100%" style="margin-top:24px;border-top:1px solid #e6eaf1;">${rows}</table>` : ""}
       ${opts.bodyNote ? `<p style="margin:22px 0 0;font-size:14px;line-height:1.7;color:#64748b;">${escapeHtml(opts.bodyNote)}</p>` : ""}
       ${cta}
       ${ctaSecondary}
+      <div style="margin-top:36px;font-size:12px;line-height:1.7;color:#94a3b8;">${footerBits}</div>
     </td></tr>
   </table>
-  <div style="max-width:560px;margin:22px auto 0;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
-    ${footerBits}
-  </div>
 </body></html>`;
 }
 

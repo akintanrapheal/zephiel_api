@@ -44,7 +44,7 @@ export const TEMPLATE_PLACEHOLDERS: Record<TemplateKind, string[]> = {
   sandbox: ["{firstName}", "{name}", "{api}", "{plan}", "{days}", "{date}", "{company}"],
   paused: ["{firstName}", "{name}", "{api}", "{plan}", "{amount}", "{company}"],
   cancelled: ["{firstName}", "{name}", "{api}", "{plan}", "{date}", "{company}"],
-  receipt: ["{firstName}", "{company}", "{invoiceNumber}", "{amount}"],
+  receipt: ["{firstName}", "{company}", "{invoiceNumber}", "{amount}", "{nextCharge}"],
   invoice: ["{company}", "{invoiceNumber}", "{amount}"],
   test: ["{company}"],
 };
@@ -81,10 +81,10 @@ export const DEFAULT_TEMPLATES: Record<TemplateKind, Template> = {
     note: "Thanks for being with {company}.",
   },
   receipt: {
-    subject: "{company} receipt {invoiceNumber} — {amount}",
+    subject: "Your {company} subscription is confirmed",
     heading: "Your payment is confirmed",
     intro:
-      "Thanks{firstName} — we've received your payment of {amount}. Your subscription is active, and your receipt is attached to this email as a PDF.",
+      "Thanks{firstName} — your payment of {amount} has been received and your subscription is active.\n\nYour next charge will be on {nextCharge}. You can update your payment method or cancel any time from your billing settings.\n\nYour invoice and receipt are attached to this email as PDFs.",
     note: "You can view your full billing history any time from your dashboard.",
   },
   invoice: {

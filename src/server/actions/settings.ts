@@ -16,7 +16,7 @@ import {
   type TemplateKind,
   type Template,
 } from "@/lib/email-templates";
-import { sampleInvoiceDocument, buildManualInvoiceDocument } from "@/server/invoices";
+import { sampleInvoiceDocument, buildManualInvoiceDocument, buildPaymentConfirmation } from "@/server/invoices";
 import { renderInvoicePdf } from "@/server/receipt-pdf";
 import { renderInvoiceHtml, renderInvoiceText, type InvoiceDocument } from "@/lib/invoice";
 import { sweepRenewalReminders } from "@/server/notifications";
@@ -392,6 +392,9 @@ export async function saveCompanyDetails(_prev: FormState, formData: FormData): 
   return { ok: "Invoice details saved." };
 }
 
+const urlOrBlank = (msg: string) =>
+  z.string().trim().max(300).refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), msg);
+
 const brandingSchema = z.object({
   logoUrl: z
     .string()
@@ -404,6 +407,11 @@ const brandingSchema = z.object({
     .refine((v) => v === "" || isHexColor(v), "Use a hex colour like #2445d6."),
   footer: z.string().trim().max(300),
   invoiceCurrency: z.enum(["USD", "NGN"]),
+  privacyUrl: urlOrBlank("Privacy link must be a full URL."),
+  socialX: urlOrBlank("X link must be a full URL."),
+  socialLinkedin: urlOrBlank("LinkedIn link must be a full URL."),
+  socialInstagram: urlOrBlank("Instagram link must be a full URL."),
+  socialYoutube: urlOrBlank("YouTube link must be a full URL."),
 });
 
 /**
@@ -418,6 +426,11 @@ export async function saveBrandingSettings(_prev: FormState, formData: FormData)
     color: String(formData.get("color") ?? ""),
     footer: String(formData.get("footer") ?? ""),
     invoiceCurrency: String(formData.get("invoiceCurrency") ?? "USD"),
+    privacyUrl: String(formData.get("privacyUrl") ?? ""),
+    socialX: String(formData.get("socialX") ?? ""),
+    socialLinkedin: String(formData.get("socialLinkedin") ?? ""),
+    socialInstagram: String(formData.get("socialInstagram") ?? ""),
+    socialYoutube: String(formData.get("socialYoutube") ?? ""),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
 
@@ -425,6 +438,11 @@ export async function saveBrandingSettings(_prev: FormState, formData: FormData)
   await setSetting("brand_color", parsed.data.color, admin.id);
   await setSetting("email_footer", parsed.data.footer, admin.id);
   await setSetting("invoice_currency", parsed.data.invoiceCurrency, admin.id);
+  await setSetting("privacy_url", parsed.data.privacyUrl, admin.id);
+  await setSetting("social_x", parsed.data.socialX, admin.id);
+  await setSetting("social_linkedin", parsed.data.socialLinkedin, admin.id);
+  await setSetting("social_instagram", parsed.data.socialInstagram, admin.id);
+  await setSetting("social_youtube", parsed.data.socialYoutube, admin.id);
 
   revalidatePath("/admin/settings", "layout");
   return { ok: "Branding saved — it now applies to every email and document." };
@@ -580,20 +598,12 @@ export async function sendLifecycleEmail(_prev: FormState, formData: FormData): 
       description: f.description,
       kind: "receipt",
     });
-    const { subject } = fillTemplate(templates.receipt, {
-      company: doc.company.name,
-      invoiceNumber: doc.invoiceNumber,
-      amount: formatCurrency(doc.total, doc.currency),
-    });
-    const sent = await sendEmail({
-      to: doc.billTo.email,
-      subject,
-      html: renderInvoiceHtml(doc),
-      text: renderInvoiceText(doc),
-      attachments: await pdfAttachment(doc),
-    });
+    // The full "payment confirmed" email — same body and both PDFs (invoice +
+    // receipt) a customer gets automatically when a payment clears.
+    const email = await buildPaymentConfirmation(doc);
+    const sent = await sendEmail({ to: doc.billTo.email, ...email });
     return sent.ok
-      ? { ok: `Receipt ${doc.invoiceNumber} sent to ${doc.billTo.email}.` }
+      ? { ok: `Payment-confirmed email (with invoice + receipt PDFs) sent to ${doc.billTo.email}.` }
       : { error: `Could not send: ${sent.error}` };
   }
 
