@@ -5,7 +5,7 @@ import { sendLifecycleEmail } from "@/server/actions/settings";
 import type { FormState } from "@/server/actions/admin";
 import { Message, Submit } from "./Form";
 
-type Kind = "receipt" | "reminder" | "paused" | "cancelled";
+type Kind = "receipt" | "reminder" | "sandbox" | "paused" | "cancelled";
 
 const field =
   "mt-1.5 w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10";
@@ -13,6 +13,7 @@ const field =
 const KINDS: { value: Kind; label: string; blurb: string }[] = [
   { value: "receipt", label: "Receipt (payment confirmed)", blurb: "A formal receipt document for a payment received." },
   { value: "reminder", label: "Renewal reminder", blurb: "A heads-up that a subscription renews soon." },
+  { value: "sandbox", label: "Free sandbox — upgrade reminder", blurb: "Warns a free sandbox is ending soon and to upgrade before calls start failing." },
   { value: "paused", label: "Subscription paused", blurb: "Access paused after a failed payment — asks them to pay the invoice." },
   { value: "cancelled", label: "Subscription cancelled", blurb: "Confirms a cancellation, with a resubscribe link." },
 ];
@@ -24,6 +25,7 @@ export default function LifecycleEmailForm() {
   const meta = KINDS.find((k) => k.value === kind)!;
   const isReceipt = kind === "receipt";
   const isReminder = kind === "reminder";
+  const isDated = kind === "reminder" || kind === "sandbox"; // uses "days left"
 
   return (
     <form action={action} className="space-y-4">
@@ -95,20 +97,25 @@ export default function LifecycleEmailForm() {
               <input name="plan" placeholder="Standard (3 stores)" className={field} />
             </label>
           </div>
-          {isReminder && (
+          {isDated && (
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-xs font-semibold text-ink">
-                  Renews on <span className="ml-1 font-normal text-muted">optional</span>
+                  {isReminder ? "Renews in (days)" : "Sandbox ends in (days)"}
                 </span>
-                <input name="date" placeholder="10 October 2026" className={field} />
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold text-ink">
-                  Amount <span className="ml-1 font-normal text-muted">optional, USD</span>
+                <input name="days" type="number" min="0" max="3650" defaultValue={7} className={field} />
+                <span className="mt-1 block text-[11px] text-muted">
+                  The date shown to the customer is worked out from this.
                 </span>
-                <input name="amountUsd" type="number" min="0" step="0.01" placeholder="15" className={field} />
               </label>
+              {isReminder && (
+                <label className="block">
+                  <span className="text-xs font-semibold text-ink">
+                    Amount <span className="ml-1 font-normal text-muted">optional, USD</span>
+                  </span>
+                  <input name="amountUsd" type="number" min="0" step="0.01" placeholder="15" className={field} />
+                </label>
+              )}
             </div>
           )}
         </>
@@ -121,7 +128,7 @@ export default function LifecycleEmailForm() {
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-3 text-xs">
         <span className="text-muted">Preview (no send):</span>
-        {(["receipt", "reminder", "paused", "cancelled"] as const).map((k) => (
+        {(["receipt", "reminder", "sandbox", "paused", "cancelled"] as const).map((k) => (
           <a
             key={k}
             href={`/admin/settings/preview/${k}`}
