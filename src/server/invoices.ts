@@ -106,7 +106,6 @@ export async function buildInvoiceDocument(reference: string): Promise<InvoiceDo
   let currency: string;
   let totalSubunits: number;
   let unitPrice: number;
-  let chargedNote: string | null = null;
 
   if (wantUsd && chargeCurrency !== "USD" && planMonthlyUsd != null && Number.isFinite(planMonthlyUsd)) {
     const perPeriodUsd = priceFor(planMonthlyUsd, interval);
@@ -114,11 +113,6 @@ export async function buildInvoiceDocument(reference: string): Promise<InvoiceDo
     currency = "USD";
     unitPrice = Math.round(perPeriodUsd * 100);
     totalSubunits = Math.round(usdTotal * 100);
-
-    const rate = usdTotal > 0 ? chargedMajor / usdTotal : null;
-    chargedNote =
-      `Charged ${formatCurrency(Math.round(chargedMajor * 100), chargeCurrency)}` +
-      (rate ? ` (paid in ${chargeCurrency} at $1 = ${formatCurrency(Math.round(rate * 100), chargeCurrency)})` : "");
   } else {
     currency = chargeCurrency;
     totalSubunits = Math.round(chargedMajor * 100);
@@ -148,7 +142,6 @@ export async function buildInvoiceDocument(reference: string): Promise<InvoiceDo
     currency,
     lines: [{ description, qty, unitPrice, amount: totalSubunits }],
     total: totalSubunits,
-    chargedNote,
     billTo: { name: p.user_name, email: p.email },
     company: await companyDetails(),
     brand: { logoUrl: brand.logoUrl, color: brand.color },
@@ -350,13 +343,6 @@ export async function sampleInvoiceDocument(
   const unit = currency === "USD" ? 50_00 : 77_500_00;
   const total = unit * stores;
 
-  // Show the reconciliation line on the sample too, so what an operator previews
-  // matches what a customer receives.
-  const chargedNote =
-    currency === "USD"
-      ? `Charged ${formatCurrency(Math.round((total / 100) * 1550 * 100), "NGN")} (paid in NGN at $1 = ${formatCurrency(1550_00, "NGN")})`
-      : null;
-
   const brand = await getBranding();
 
   return {
@@ -378,7 +364,6 @@ export async function sampleInvoiceDocument(
       },
     ],
     total,
-    chargedNote,
     billTo: { name: "Sample Customer", email: "customer@example.com" },
     company: await companyDetails(),
     brand: { logoUrl: brand.logoUrl, color: brand.color },
