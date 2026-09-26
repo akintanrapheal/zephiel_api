@@ -4,6 +4,7 @@ import SampleEmailForm from "@/components/admin/SampleEmailForm";
 import BrandingForm from "@/components/admin/BrandingForm";
 import EmailTemplatesForm from "@/components/admin/EmailTemplatesForm";
 import ManualInvoiceForm from "@/components/admin/ManualInvoiceForm";
+import LifecycleEmailForm from "@/components/admin/LifecycleEmailForm";
 import { getEmailConfig } from "@/lib/email";
 import { getBranding } from "@/lib/branding";
 import { getSettings } from "@/lib/settings";
@@ -77,6 +78,10 @@ export default async function EmailSettingsPage() {
 
       <Card title="Issue an invoice" padded>
         <ManualInvoiceForm />
+      </Card>
+
+      <Card title="Send a customer email" padded>
+        <LifecycleEmailForm />
       </Card>
     </div>
   );

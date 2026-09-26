@@ -172,10 +172,14 @@ export async function buildManualInvoiceDocument(input: {
   amountUsd: number;
   description: string;
   dueInDays?: number;
+  /** "receipt" marks it paid; "invoice" leaves an amount due. */
+  kind?: "invoice" | "receipt";
 }): Promise<InvoiceDocument> {
   const now = new Date();
   const dueAt = new Date(now);
   dueAt.setDate(dueAt.getDate() + (input.dueInDays ?? 14));
+  const kind = input.kind ?? "invoice";
+  const paid = kind === "receipt";
 
   const [{ n }] = await sql<{ n: string }[]>`SELECT nextval('invoice_number_seq')::text AS n`;
   const invoiceNumber = `ZPH-${now.getFullYear()}-${n.padStart(5, "0")}`;
@@ -184,18 +188,19 @@ export async function buildManualInvoiceDocument(input: {
   const brand = await getBranding();
 
   return {
-    kind: "invoice",
+    kind,
     invoiceNumber,
+    receiptNumber: paid ? invoiceNumber.replace("ZPH-", "R-") : null,
     issuedAt: now,
-    dueAt,
-    paidAt: null,
+    dueAt: paid ? null : dueAt,
+    paidAt: paid ? now : null,
     currency: "USD",
     lines: [{ description: input.description, qty: 1, unitPrice: totalSubunits, amount: totalSubunits }],
     total: totalSubunits,
     billTo: { name: input.name ?? null, email: input.to },
     company: await companyDetails(),
     brand: { logoUrl: brand.logoUrl, color: brand.color },
-    payment: null,
+    payment: paid ? { method: "Manual", date: now, reference: invoiceNumber } : null,
   };
 }
 
