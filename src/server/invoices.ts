@@ -58,7 +58,7 @@ async function loadPayment(reference: string): Promise<PaymentRow | null> {
            u.email, u.name AS user_name,
            a.name AS api_name, pl.name AS plan_name, pl.unit AS plan_unit,
            pl.price::text AS plan_price,
-           s.units, s.billing_interval
+           p.units, s.billing_interval
     FROM payments p
     LEFT JOIN users u ON u.id = p.user_id
     LEFT JOIN subscriptions s ON s.id = p.subscription_id
@@ -345,9 +345,10 @@ export async function sampleInvoiceDocument(
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
   const currency = await displayCurrency();
-  // A believable per-store price in the display currency (USD by default).
-  const unit = currency === "USD" ? 5_00 : 7_750_00;
-  const total = unit * 3;
+  // Mirrors the Multistore Starter plan: $50/store, 4 billable stores = $200.
+  const stores = 4;
+  const unit = currency === "USD" ? 50_00 : 77_500_00;
+  const total = unit * stores;
 
   // Show the reconciliation line on the sample too, so what an operator previews
   // matches what a customer receives.
@@ -370,8 +371,8 @@ export async function sampleInvoiceDocument(
     currency,
     lines: [
       {
-        description: "Multistore — Standard (3 stores) · billed monthly",
-        qty: 3,
+        description: `Multistore — Starter (${stores} stores) · billed monthly`,
+        qty: stores,
         unitPrice: unit,
         amount: total,
       },
