@@ -6,13 +6,14 @@ import type { FormState } from "@/server/actions/admin";
 import { Message, Submit } from "./Form";
 
 type Template = { subject: string; heading: string; intro: string; note: string };
-type Kind = "renewal" | "sandbox" | "receipt" | "invoice" | "test";
+type Kind = "renewal" | "sandbox" | "paused" | "cancelled" | "receipt" | "invoice" | "test";
 
 const field =
   "mt-1.5 w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10";
 
-// receipt/invoice are rendered documents — only the subject line is copy.
-const SUBJECT_ONLY: Kind[] = ["receipt", "invoice"];
+// The invoice email is a rendered document — only its subject line is copy.
+// (The receipt now also has an email body, so it shows the full fields.)
+const SUBJECT_ONLY: Kind[] = ["invoice"];
 
 export default function EmailTemplatesForm({
   labels,
