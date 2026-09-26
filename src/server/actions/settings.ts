@@ -526,13 +526,14 @@ export async function sendManualInvoice(_prev: FormState, formData: FormData): P
 }
 
 const lifecycleSchema = z.object({
-  kind: z.enum(["receipt", "reminder", "paused", "cancelled"]),
+  kind: z.enum(["receipt", "reminder", "sandbox", "paused", "cancelled"]),
   to: z.string().trim().toLowerCase().email("Enter the customer's email address."),
   name: z.string().trim().max(120),
   api: z.string().trim().max(120),
   plan: z.string().trim().max(120),
   amountUsd: z.coerce.number().min(0).max(1_000_000).optional(),
-  date: z.string().trim().max(60),
+  // Days until it renews / the sandbox ends — drives {days} and the {date}.
+  days: z.coerce.number().int().min(0).max(3650).optional(),
   description: z.string().trim().max(300),
 });
 
@@ -556,7 +557,7 @@ export async function sendLifecycleEmail(_prev: FormState, formData: FormData): 
     api: String(formData.get("api") ?? ""),
     plan: String(formData.get("plan") ?? ""),
     amountUsd: formData.get("amountUsd") || undefined,
-    date: String(formData.get("date") ?? ""),
+    days: formData.get("days") || undefined,
     description: String(formData.get("description") ?? ""),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
@@ -596,14 +597,26 @@ export async function sendLifecycleEmail(_prev: FormState, formData: FormData): 
       : { error: `Could not send: ${sent.error}` };
   }
 
-  // reminder / paused / cancelled → branded shell email with a fitting CTA.
+  // reminder / sandbox / paused / cancelled → branded shell email with a fitting CTA.
+  // For the two date-driven kinds, the customer enters days-left and we compute
+  // the human date, so {days} and {date} are both correct.
+  const usesDate = f.kind === "reminder" || f.kind === "sandbox";
+  const dateStr =
+    usesDate && f.days != null
+      ? new Date(Date.now() + f.days * 86_400_000).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : "";
+
   const vars = {
     firstName,
     name: f.name,
     api,
     plan: f.plan || "—",
-    days: f.date || "",
-    date: f.date || "",
+    days: f.days != null ? String(f.days) : "",
+    date: dateStr,
     amount: amountText,
     company: brand.companyName,
   };
@@ -616,13 +629,15 @@ export async function sendLifecycleEmail(_prev: FormState, formData: FormData): 
       ? { ctaLabel: "Pay invoice", ctaHref: `${appUrl()}/dashboard/billing`, ctaSecondaryLabel: "Go to billing settings", ctaSecondaryHref: `${appUrl()}/dashboard` }
       : f.kind === "cancelled"
         ? { ctaLabel: "Resubscribe", ctaHref: `${appUrl()}/pricing` }
-        : { ctaLabel: "Review subscription", ctaHref: `${appUrl()}/dashboard` };
+        : f.kind === "sandbox"
+          ? { ctaLabel: "Upgrade now", ctaHref: `${appUrl()}/pricing` }
+          : { ctaLabel: "Review subscription", ctaHref: `${appUrl()}/dashboard` };
 
   const rows = [
     { label: "API", value: f.api || brand.companyName },
     ...(f.plan ? [{ label: "Plan", value: f.plan }] : []),
     ...(amountText ? [{ label: "Amount", value: amountText }] : []),
-    ...(f.date ? [{ label: f.kind === "reminder" ? "Renews" : "Date", value: f.date }] : []),
+    ...(dateStr ? [{ label: f.kind === "sandbox" ? "Sandbox ends" : "Renews", value: dateStr }] : []),
   ];
 
   const sent = await sendEmail({
