@@ -17,6 +17,12 @@ export type SettingKey =
   | "brand_logo_url"
   | "brand_color"
   | "email_footer"
+  // Footer extras (privacy link + social profiles), shown like Anthropic's.
+  | "privacy_url"
+  | "social_x"
+  | "social_linkedin"
+  | "social_instagram"
+  | "social_youtube"
   // Currency shown on invoices and receipts (charging still happens in the
   // Paystack currency at the live rate; this is display only).
   | "invoice_currency"

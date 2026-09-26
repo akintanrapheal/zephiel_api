@@ -61,6 +61,11 @@ export default async function EmailSettingsPage() {
           color={brand.color}
           footer={brand.footer}
           invoiceCurrency={(settings.invoice_currency ?? "USD").toUpperCase()}
+          privacyUrl={settings.privacy_url ?? ""}
+          socialX={settings.social_x ?? ""}
+          socialLinkedin={settings.social_linkedin ?? ""}
+          socialInstagram={settings.social_instagram ?? ""}
+          socialYoutube={settings.social_youtube ?? ""}
         />
       </Card>
 

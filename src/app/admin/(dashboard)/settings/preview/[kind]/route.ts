@@ -1,12 +1,14 @@
 import { getCurrentUser } from "@/lib/auth";
-import { sampleInvoiceDocument } from "@/server/invoices";
+import { sampleInvoiceDocument, buildPaymentConfirmation } from "@/server/invoices";
 import { renderInvoiceHtml } from "@/lib/invoice";
 import { emailShell } from "@/lib/email";
 import { getBranding, renderFooter, emailBrand } from "@/lib/branding";
 import { getTemplates, fillTemplate, type TemplateKind } from "@/lib/email-templates";
 import { appUrl } from "@/lib/app-url";
 
-const DOCUMENTS = new Set(["receipt", "invoice"]);
+// Only the invoice is previewed as a document; the receipt is previewed as the
+// "payment confirmed" email a customer actually receives.
+const DOCUMENTS = new Set(["invoice"]);
 const SHELL: Record<string, { templateKey: TemplateKind; cta: string; href: string; secondary?: string; secondaryHref?: string }> = {
   reminder: { templateKey: "renewal", cta: "Review subscription", href: "/dashboard" },
   sandbox: { templateKey: "sandbox", cta: "Upgrade now", href: "/pricing" },
@@ -28,7 +30,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
     });
 
   if (DOCUMENTS.has(kind)) {
-    return html(renderInvoiceHtml(await sampleInvoiceDocument(kind as "receipt" | "invoice")));
+    return html(renderInvoiceHtml(await sampleInvoiceDocument(kind as "invoice")));
+  }
+
+  // The receipt preview is the confirmation email (with the sample doc).
+  if (kind === "receipt") {
+    const email = await buildPaymentConfirmation(await sampleInvoiceDocument("receipt"));
+    return html(email.html);
   }
 
   const spec = SHELL[kind];

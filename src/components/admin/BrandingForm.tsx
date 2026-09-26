@@ -13,11 +13,21 @@ export default function BrandingForm({
   color,
   footer,
   invoiceCurrency,
+  privacyUrl,
+  socialX,
+  socialLinkedin,
+  socialInstagram,
+  socialYoutube,
 }: {
   logoUrl: string;
   color: string;
   footer: string;
   invoiceCurrency: string;
+  privacyUrl: string;
+  socialX: string;
+  socialLinkedin: string;
+  socialInstagram: string;
+  socialYoutube: string;
 }) {
   const [state, action] = useActionState<FormState, FormData>(saveBrandingSettings, null);
   const [logo, setLogo] = useState(logoUrl);
@@ -101,6 +111,38 @@ export default function BrandingForm({
           className={field}
         />
       </label>
+
+      <div className="border-t border-line pt-4">
+        <p className="mb-3 text-xs font-semibold text-ink">
+          Footer links <span className="ml-1 font-normal text-muted">shown under every email, like the reference</span>
+        </p>
+        <label className="block">
+          <span className="text-xs font-semibold text-ink">
+            Privacy policy URL <span className="ml-1 font-normal text-muted">shows as “Privacy” next to Help</span>
+          </span>
+          <input name="privacyUrl" defaultValue={privacyUrl} placeholder="https://zephiel.com/legal/privacy" className={field} />
+        </label>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-semibold text-ink">X (Twitter)</span>
+            <input name="socialX" defaultValue={socialX} placeholder="https://x.com/…" className={field} />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-ink">LinkedIn</span>
+            <input name="socialLinkedin" defaultValue={socialLinkedin} placeholder="https://linkedin.com/company/…" className={field} />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-ink">Instagram</span>
+            <input name="socialInstagram" defaultValue={socialInstagram} placeholder="https://instagram.com/…" className={field} />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-ink">YouTube</span>
+            <input name="socialYoutube" defaultValue={socialYoutube} placeholder="https://youtube.com/@…" className={field} />
+          </label>
+        </div>
+        <p className="mt-2 text-[11px] text-muted">Leave any blank to hide it. Only links you set are shown.</p>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <Submit>Save branding</Submit>

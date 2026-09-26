@@ -188,6 +188,11 @@ export async function buildManualInvoiceDocument(input: {
   const totalSubunits = Math.round(input.amountUsd * 100);
   const brand = await getBranding();
 
+  // A receipt gets a billing period so the confirmation email can show a
+  // "next charge" date, matching what a real subscription payment produces.
+  const periodEnd = new Date(now);
+  periodEnd.setMonth(periodEnd.getMonth() + 1);
+
   return {
     kind,
     invoiceNumber,
@@ -195,6 +200,8 @@ export async function buildManualInvoiceDocument(input: {
     issuedAt: now,
     dueAt: paid ? null : dueAt,
     paidAt: paid ? now : null,
+    periodStart: paid ? now : null,
+    periodEnd: paid ? periodEnd : null,
     currency: "USD",
     lines: [{ description: input.description, qty: 1, unitPrice: totalSubunits, amount: totalSubunits }],
     total: totalSubunits,
@@ -228,35 +235,80 @@ export async function sendReceiptEmail(reference: string): Promise<
     return { sent: false, reason: "Payment has no billable account." };
   }
 
+  const email = await buildPaymentConfirmation(doc);
+  const result = await sendEmail({ to: doc.billTo.email, ...email });
+
+  if (!result.ok) {
+    // Release the claim so a later retry can send it.
+    await sql`UPDATE payments SET receipt_sent_at = NULL WHERE id = ${claimed.id}`;
+    return { sent: false, reason: result.error };
+  }
+
+  return { sent: true };
+}
+
+/** The same paid document as an "amount due" invoice, for the invoice PDF. */
+function asInvoice(doc: InvoiceDocument): InvoiceDocument {
+  return {
+    ...doc,
+    kind: "invoice",
+    receiptNumber: null,
+    dueAt: doc.dueAt ?? doc.issuedAt,
+    paidAt: null,
+    payment: null,
+  };
+}
+
+/**
+ * The "payment confirmed" email — subject, HTML body, plain text, and BOTH the
+ * invoice and the receipt as PDF attachments.
+ *
+ * Shared by the automatic post-payment send and the admin's manual/test send so
+ * a customer always receives exactly the same message.
+ */
+export async function buildPaymentConfirmation(doc: InvoiceDocument): Promise<{
+  subject: string;
+  html: string;
+  text: string;
+  attachments?: { filename: string; content: Uint8Array }[];
+}> {
   const [templates, brand] = await Promise.all([getTemplates(), getBranding()]);
   const amount = formatCurrency(doc.total, doc.currency);
   const firstName = doc.billTo.name ? ` ${doc.billTo.name.split(" ")[0]}` : "";
-  const t = fillTemplate(templates.receipt, {
-    firstName,
-    name: doc.billTo.name ?? "",
-    company: doc.company.name,
-    invoiceNumber: doc.invoiceNumber,
-    amount,
-  });
-
-  // Attach the receipt as a PDF. Best-effort: a PDF failure must not stop the
-  // confirmation email going out.
-  let attachments: { filename: string; content: Uint8Array }[] | undefined;
-  try {
-    const pdf = await renderInvoicePdf(doc);
-    attachments = [{ filename: `receipt-${doc.invoiceNumber}.pdf`, content: pdf }];
-  } catch (err) {
-    console.error("Receipt PDF generation failed:", err);
-  }
 
   const paidOn = new Date(doc.paidAt ?? doc.issuedAt).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
+  const nextCharge = doc.periodEnd
+    ? new Date(doc.periodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+    : "the end of your current billing period";
 
-  const result = await sendEmail({
-    to: doc.billTo.email,
+  const t = fillTemplate(templates.receipt, {
+    firstName,
+    name: doc.billTo.name ?? "",
+    company: doc.company.name,
+    invoiceNumber: doc.invoiceNumber,
+    amount,
+    nextCharge,
+  });
+
+  // Both documents attached: invoice (the charge) and receipt (proof of payment).
+  // Each is best-effort — a PDF hiccup must never stop the email going out.
+  const attachments: { filename: string; content: Uint8Array }[] = [];
+  try {
+    attachments.push({ filename: `invoice-${doc.invoiceNumber}.pdf`, content: await renderInvoicePdf(asInvoice(doc)) });
+  } catch (err) {
+    console.error("Invoice PDF failed:", err);
+  }
+  try {
+    attachments.push({ filename: `receipt-${doc.invoiceNumber}.pdf`, content: await renderInvoicePdf(doc) });
+  } catch (err) {
+    console.error("Receipt PDF failed:", err);
+  }
+
+  return {
     subject: t.subject,
     html: emailShell({
       heading: t.heading,
@@ -274,16 +326,8 @@ export async function sendReceiptEmail(reference: string): Promise<
       footer: renderFooter(brand),
     }),
     text: `${t.heading}\n\n${t.intro}\n\n${renderInvoiceText(doc)}\n\nView online: ${appUrl()}/dashboard/billing/${doc.invoiceNumber}`,
-    attachments,
-  });
-
-  if (!result.ok) {
-    // Release the claim so a later retry can send it.
-    await sql`UPDATE payments SET receipt_sent_at = NULL WHERE id = ${claimed.id}`;
-    return { sent: false, reason: result.error };
-  }
-
-  return { sent: true };
+    attachments: attachments.length ? attachments : undefined,
+  };
 }
 
 /**

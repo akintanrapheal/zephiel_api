@@ -11,7 +11,7 @@ const field =
   "mt-1.5 w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10";
 
 const KINDS: { value: Kind; label: string; blurb: string }[] = [
-  { value: "receipt", label: "Receipt (payment confirmed)", blurb: "A formal receipt document for a payment received." },
+  { value: "receipt", label: "Payment confirmed (receipt)", blurb: "The exact email a customer gets when payment clears — confirmation message with the invoice AND receipt attached as PDFs. Send it to yourself to check." },
   { value: "reminder", label: "Renewal reminder", blurb: "A heads-up that a subscription renews soon." },
   { value: "sandbox", label: "Free sandbox — upgrade reminder", blurb: "Warns a free sandbox is ending soon and to upgrade before calls start failing." },
   { value: "paused", label: "Subscription paused", blurb: "Access paused after a failed payment — asks them to pay the invoice." },
