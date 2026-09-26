@@ -1,7 +1,13 @@
 import { Card } from "@/components/admin/PageHeader";
 import EmailSettingsForm from "@/components/admin/EmailSettingsForm";
 import SampleEmailForm from "@/components/admin/SampleEmailForm";
+import BrandingForm from "@/components/admin/BrandingForm";
+import EmailTemplatesForm from "@/components/admin/EmailTemplatesForm";
+import ManualInvoiceForm from "@/components/admin/ManualInvoiceForm";
 import { getEmailConfig } from "@/lib/email";
+import { getBranding } from "@/lib/branding";
+import { getSettings } from "@/lib/settings";
+import { getTemplates, TEMPLATE_LABELS, TEMPLATE_PLACEHOLDERS } from "@/lib/email-templates";
 import { REMINDER_DAYS } from "@/server/notifications";
 import { requireAdmin } from "@/lib/auth";
 
@@ -9,7 +15,13 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Email · Settings" };
 
 export default async function EmailSettingsPage() {
-  const [admin, email] = await Promise.all([requireAdmin(), getEmailConfig()]);
+  const [admin, email, brand, templates, settings] = await Promise.all([
+    requireAdmin(),
+    getEmailConfig(),
+    getBranding(),
+    getTemplates(),
+    getSettings().catch(() => ({}) as Record<string, string>),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -42,8 +54,29 @@ export default async function EmailSettingsPage() {
         />
       </Card>
 
+      <Card title="Branding" padded>
+        <BrandingForm
+          logoUrl={brand.logoUrl}
+          color={brand.color}
+          footer={brand.footer}
+          invoiceCurrency={(settings.invoice_currency ?? "USD").toUpperCase()}
+        />
+      </Card>
+
+      <Card title="Message wording" padded>
+        <EmailTemplatesForm
+          labels={TEMPLATE_LABELS}
+          placeholders={TEMPLATE_PLACEHOLDERS}
+          templates={templates}
+        />
+      </Card>
+
       <Card title="Preview & test documents" padded>
         <SampleEmailForm adminEmail={admin.email} />
+      </Card>
+
+      <Card title="Issue an invoice" padded>
+        <ManualInvoiceForm />
       </Card>
     </div>
   );

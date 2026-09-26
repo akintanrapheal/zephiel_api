@@ -68,6 +68,13 @@ export async function sendEmail(params: {
   }
 }
 
+/** Logo + wordmark for the top of a message. */
+export type EmailBrand = {
+  logoUrl?: string;
+  color?: string;
+  companyName?: string;
+};
+
 /** Shared shell so every message looks like it came from the same product. */
 export function emailShell(opts: {
   heading: string;
@@ -77,7 +84,11 @@ export function emailShell(opts: {
   ctaLabel?: string;
   ctaHref?: string;
   footer?: string;
+  brand?: EmailBrand;
 }) {
+  const brandColor = safeColor(opts.brand?.color) ?? "#2445d6";
+  const company = opts.brand?.companyName ?? "Zephiel API";
+
   const rows = (opts.rows ?? [])
     .map(
       (r) => `
@@ -90,14 +101,20 @@ export function emailShell(opts: {
 
   const cta =
     opts.ctaHref && opts.ctaLabel
-      ? `<a href="${opts.ctaHref}" style="display:inline-block;margin-top:24px;background:#2445d6;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;">${escapeHtml(opts.ctaLabel)}</a>`
+      ? `<a href="${opts.ctaHref}" style="display:inline-block;margin-top:24px;background:${brandColor};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;">${escapeHtml(opts.ctaLabel)}</a>`
       : "";
+
+  // Logo image when configured, with the wordmark as its alt text so a client
+  // that blocks images still shows the brand name.
+  const brandmark = opts.brand?.logoUrl
+    ? `<img src="${escapeHtml(opts.brand.logoUrl)}" alt="${escapeHtml(company)}" height="32" style="height:32px;width:auto;display:block;border:0;outline:none;text-decoration:none;" />`
+    : `<div style="font-size:15px;font-weight:700;color:#0f172a;">${escapeHtml(company)}</div>`;
 
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;">
     <tr><td style="padding:32px;">
-      <div style="font-size:15px;font-weight:700;color:#0f172a;">Zephiel API</div>
+      ${brandmark}
       <h1 style="margin:20px 0 0;font-size:20px;line-height:1.35;color:#0f172a;">${escapeHtml(opts.heading)}</h1>
       <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#475569;">${escapeHtml(opts.intro)}</p>
       ${rows ? `<table role="presentation" style="width:100%;margin-top:22px;border-top:1px solid #e2e8f0;">${rows}</table>` : ""}
@@ -106,9 +123,14 @@ export function emailShell(opts: {
     </td></tr>
   </table>
   <p style="max-width:560px;margin:16px auto 0;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
-    ${escapeHtml(opts.footer ?? "You are receiving this because you have an active subscription on Zephiel API.")}
+    ${escapeHtml(opts.footer ?? `You are receiving this because you have an account on ${company}.`)}
   </p>
 </body></html>`;
+}
+
+/** Only allow a hex colour into an inline style. */
+function safeColor(v: string | undefined): string | null {
+  return v && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim()) ? v.trim() : null;
 }
 
 function escapeHtml(v: string) {

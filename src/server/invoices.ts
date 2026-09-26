@@ -1,9 +1,12 @@
 import "server-only";
 import { sql } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
+import { getBranding } from "@/lib/branding";
 import { sendEmail } from "@/lib/email";
 import { renderInvoiceHtml, renderInvoiceText, type InvoiceDocument } from "@/lib/invoice";
 import { formatCurrency } from "@/lib/paystack";
+import { priceFor, type BillingInterval } from "@/lib/plans";
+import { getTemplates, fillTemplate } from "@/lib/email-templates";
 import { appUrl } from "@/lib/app-url";
 
 type PaymentRow = {
@@ -23,6 +26,7 @@ type PaymentRow = {
   api_name: string | null;
   plan_name: string | null;
   plan_unit: string | null;
+  plan_price: string | null;
   units: number | null;
   billing_interval: string | null;
 };
@@ -52,6 +56,7 @@ async function loadPayment(reference: string): Promise<PaymentRow | null> {
            p.created_at, p.paid_at, p.invoice_number, p.period_start, p.period_end,
            u.email, u.name AS user_name,
            a.name AS api_name, pl.name AS plan_name, pl.unit AS plan_unit,
+           pl.price::text AS plan_price,
            s.units, s.billing_interval
     FROM payments p
     LEFT JOIN users u ON u.id = p.user_id
@@ -75,24 +80,60 @@ async function companyDetails() {
   };
 }
 
+/** Currency invoices/receipts are shown in — USD by default (charging is separate). */
+async function displayCurrency(): Promise<string> {
+  const settings = await getSettings().catch(() => ({}) as Record<string, string>);
+  return (settings.invoice_currency || "USD").toUpperCase();
+}
+
 export async function buildInvoiceDocument(reference: string): Promise<InvoiceDocument | null> {
   const p = await loadPayment(reference);
   if (!p || !p.email) return null;
 
   const paid = p.status === "success";
-  const totalSubunits = Math.round(Number(p.amount) * 100);
+  const chargeCurrency = p.currency; // what Paystack actually took (e.g. NGN)
+  const chargedMajor = Number(p.amount); // stored in major units of chargeCurrency
   const qty = p.plan_unit ? (p.units ?? 1) : 1;
-  const unitPrice = qty > 0 ? Math.round(totalSubunits / qty) : totalSubunits;
+  const interval: BillingInterval = p.billing_interval === "annual" ? "annual" : "monthly";
+  const planMonthlyUsd = p.plan_price != null ? Number(p.plan_price) : null;
 
-  const period = p.billing_interval === "annual" ? "annual" : "monthly";
+  const wantUsd = (await displayCurrency()) === "USD";
+
+  // Show the document in USD (the canonical plan price) when we can, with a
+  // note reconciling it to the naira actually charged. Fall back to the charge
+  // currency for legacy rows that have no plan price to price from.
+  let currency: string;
+  let totalSubunits: number;
+  let unitPrice: number;
+  let chargedNote: string | null = null;
+
+  if (wantUsd && chargeCurrency !== "USD" && planMonthlyUsd != null && Number.isFinite(planMonthlyUsd)) {
+    const perPeriodUsd = priceFor(planMonthlyUsd, interval);
+    const usdTotal = perPeriodUsd * qty;
+    currency = "USD";
+    unitPrice = Math.round(perPeriodUsd * 100);
+    totalSubunits = Math.round(usdTotal * 100);
+
+    const rate = usdTotal > 0 ? chargedMajor / usdTotal : null;
+    chargedNote =
+      `Charged ${formatCurrency(Math.round(chargedMajor * 100), chargeCurrency)}` +
+      (rate ? ` (paid in ${chargeCurrency} at $1 = ${formatCurrency(Math.round(rate * 100), chargeCurrency)})` : "");
+  } else {
+    currency = chargeCurrency;
+    totalSubunits = Math.round(chargedMajor * 100);
+    unitPrice = qty > 0 ? Math.round(totalSubunits / qty) : totalSubunits;
+  }
+
   const description = [
     p.api_name ?? "Subscription",
     p.plan_name ? `— ${p.plan_name}` : "",
     p.plan_unit && qty > 1 ? `(${qty} ${p.plan_unit}s)` : "",
-    `· billed ${period}`,
+    `· billed ${interval}`,
   ]
     .filter(Boolean)
     .join(" ");
+
+  const brand = await getBranding();
 
   return {
     kind: paid ? "receipt" : "invoice",
@@ -103,11 +144,13 @@ export async function buildInvoiceDocument(reference: string): Promise<InvoiceDo
     paidAt: p.paid_at,
     periodStart: p.period_start,
     periodEnd: p.period_end,
-    currency: p.currency,
+    currency,
     lines: [{ description, qty, unitPrice, amount: totalSubunits }],
     total: totalSubunits,
+    chargedNote,
     billTo: { name: p.user_name, email: p.email },
     company: await companyDetails(),
+    brand: { logoUrl: brand.logoUrl, color: brand.color },
     payment: paid
       ? {
           method: p.channel ? p.channel.replace(/_/g, " ") : "Card",
@@ -115,6 +158,44 @@ export async function buildInvoiceDocument(reference: string): Promise<InvoiceDo
           reference: p.reference,
         }
       : null,
+  };
+}
+
+/**
+ * A one-off invoice not tied to a payment row — for a manual bill an admin
+ * issues by hand (e.g. an off-platform arrangement). Document only: nothing is
+ * charged and no payment record is created.
+ */
+export async function buildManualInvoiceDocument(input: {
+  to: string;
+  name?: string | null;
+  amountUsd: number;
+  description: string;
+  dueInDays?: number;
+}): Promise<InvoiceDocument> {
+  const now = new Date();
+  const dueAt = new Date(now);
+  dueAt.setDate(dueAt.getDate() + (input.dueInDays ?? 14));
+
+  const [{ n }] = await sql<{ n: string }[]>`SELECT nextval('invoice_number_seq')::text AS n`;
+  const invoiceNumber = `ZPH-${now.getFullYear()}-${n.padStart(5, "0")}`;
+
+  const totalSubunits = Math.round(input.amountUsd * 100);
+  const brand = await getBranding();
+
+  return {
+    kind: "invoice",
+    invoiceNumber,
+    issuedAt: now,
+    dueAt,
+    paidAt: null,
+    currency: "USD",
+    lines: [{ description: input.description, qty: 1, unitPrice: totalSubunits, amount: totalSubunits }],
+    total: totalSubunits,
+    billTo: { name: input.name ?? null, email: input.to },
+    company: await companyDetails(),
+    brand: { logoUrl: brand.logoUrl, color: brand.color },
+    payment: null,
   };
 }
 
@@ -141,9 +222,16 @@ export async function sendReceiptEmail(reference: string): Promise<
     return { sent: false, reason: "Payment has no billable account." };
   }
 
+  const templates = await getTemplates();
+  const { subject } = fillTemplate(templates.receipt, {
+    company: doc.company.name,
+    invoiceNumber: doc.invoiceNumber,
+    amount: formatCurrency(doc.total, doc.currency),
+  });
+
   const result = await sendEmail({
     to: doc.billTo.email,
-    subject: `${doc.company.name} receipt ${doc.invoiceNumber} — ${formatCurrency(doc.total, doc.currency)}`,
+    subject,
     html: renderInvoiceHtml(doc),
     text: `${renderInvoiceText(doc)}\n\nView online: ${appUrl()}/dashboard/billing/${doc.invoiceNumber}`,
   });
@@ -171,9 +259,19 @@ export async function sampleInvoiceDocument(
   const periodEnd = new Date(now);
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-  const settings = await getSettings().catch(() => ({}) as Record<string, string>);
-  const currency = (settings.paystack_currency ?? "NGN").toUpperCase();
-  const unit = currency === "USD" ? 5000 : 7_750_00;
+  const currency = await displayCurrency();
+  // A believable per-store price in the display currency (USD by default).
+  const unit = currency === "USD" ? 5_00 : 7_750_00;
+  const total = unit * 3;
+
+  // Show the reconciliation line on the sample too, so what an operator previews
+  // matches what a customer receives.
+  const chargedNote =
+    currency === "USD"
+      ? `Charged ${formatCurrency(Math.round((total / 100) * 1550 * 100), "NGN")} (paid in NGN at $1 = ${formatCurrency(1550_00, "NGN")})`
+      : null;
+
+  const brand = await getBranding();
 
   return {
     kind,
@@ -190,12 +288,14 @@ export async function sampleInvoiceDocument(
         description: "Multistore — Standard (3 stores) · billed monthly",
         qty: 3,
         unitPrice: unit,
-        amount: unit * 3,
+        amount: total,
       },
     ],
-    total: unit * 3,
+    total,
+    chargedNote,
     billTo: { name: "Sample Customer", email: "customer@example.com" },
     company: await companyDetails(),
+    brand: { logoUrl: brand.logoUrl, color: brand.color },
     payment:
       kind === "receipt"
         ? { method: "Card", date: now, reference: "zph_sample_preview" }

@@ -64,7 +64,7 @@ export default function PaystackSettingsForm({
           </Select>
           <Field
             label="USD conversion rate"
-            hint="ignored when charging in USD"
+            hint="fallback only — see below"
             name="usdToNgn"
             type="number"
             step="0.01"
@@ -72,6 +72,13 @@ export default function PaystackSettingsForm({
             defaultValue={usdToNgn}
           />
         </div>
+
+        <p className="rounded-xl border border-line bg-surface px-4 py-3 text-xs leading-6 text-muted">
+          <span className="font-semibold text-ink">Live rate.</span> USD prices are converted to your
+          charge currency using the day&apos;s real USD→NGN rate at the moment of checkout, so Paystack
+          always charges the correct amount. The number above is only the fallback used if the live
+          rate is briefly unavailable — it is refreshed automatically each day.
+        </p>
 
         <div className="flex flex-wrap items-center gap-3">
           <Submit>Save Paystack settings</Submit>

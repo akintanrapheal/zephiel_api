@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { sweepRenewalReminders } from "@/server/notifications";
 import { isEmailConfigured } from "@/lib/email";
+import { refreshStoredUsdToNgn } from "@/lib/paystack";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -33,9 +34,17 @@ export async function GET(request: Request) {
     );
   }
 
+  // Keep the stored fallback USD→NGN rate current every day. Independent of
+  // email, so it still runs when no provider is configured.
+  const fxRate = await refreshStoredUsdToNgn().catch(() => null);
+
   if (!(await isEmailConfigured())) {
     return NextResponse.json(
-      { skipped: true, reason: "No email provider configured — set a Resend key in admin settings." },
+      {
+        skipped: true,
+        reason: "No email provider configured — set a Resend key in admin settings.",
+        fxRate,
+      },
       { status: 200 }
     );
   }
@@ -43,5 +52,5 @@ export async function GET(request: Request) {
   const result = await sweepRenewalReminders();
   console.log("Renewal sweep:", JSON.stringify(result));
 
-  return NextResponse.json({ ok: true, ...result });
+  return NextResponse.json({ ok: true, fxRate, ...result });
 }
