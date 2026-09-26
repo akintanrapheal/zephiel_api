@@ -1,6 +1,8 @@
 import "server-only";
 import { sql } from "@/lib/db";
 import { emailShell, sendEmail } from "@/lib/email";
+import { getBranding, renderFooter } from "@/lib/branding";
+import { getTemplates, fillTemplate } from "@/lib/email-templates";
 import { appUrl } from "@/lib/app-url";
 
 /** Days before expiry at which a reminder goes out. */
@@ -63,6 +65,10 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
   const due = await findExpiring();
   const result: SweepResult = { considered: due.length, sent: 0, skipped: 0, failed: 0, details: [] };
 
+  // Branding and template copy are the same for every message in this run, so
+  // fetch them once rather than per subscription.
+  const [brand, templates] = await Promise.all([getBranding(), getTemplates()]);
+
   for (const row of due) {
     const daysLeft = Math.max(
       0,
@@ -97,21 +103,21 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
 
     const firstName = row.name ? ` ${row.name.split(" ")[0]}` : "";
 
-    const heading = isFree
-      ? (daysLeft <= 1
-          ? `Your free ${row.api_name} sandbox ends tomorrow`
-          : `Your free ${row.api_name} sandbox ends in ${daysLeft} days`)
-      : (daysLeft <= 1
-          ? `${row.api_name} renews tomorrow`
-          : `${row.api_name} renews in ${daysLeft} days`);
-
-    const intro = isFree
-      ? `Hello${firstName}, your free ${row.api_name} sandbox access ends on ${renews}. ` +
-        `Upgrade to a paid plan before then to keep your integration running — once the sandbox ends, ` +
-        `calls from your project start returning 403 errors and any sync against it will fail until you upgrade.`
-      : `Hello${firstName}, your ${row.api_name} subscription is due to renew on ${renews}. ` +
-        `If it lapses, calls from your integration start returning 403 and any sync running against it ` +
-        `will fail until the plan is active again.`;
+    // Copy comes from the (editable) templates; only the CTA and detail rows are
+    // decided in code, since those depend on free-vs-paid mechanics.
+    const { subject, heading, intro, note } = fillTemplate(
+      isFree ? templates.sandbox : templates.renewal,
+      {
+        firstName,
+        name: row.name ?? "",
+        api: row.api_name,
+        plan: row.plan_name,
+        days: String(daysLeft),
+        date: renews,
+        amount: monthly === 0 ? "Free" : `$${monthly.toLocaleString()}`,
+        company: brand.companyName,
+      }
+    );
 
     const html = emailShell({
       heading,
@@ -123,13 +129,11 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
         ...(row.unit ? [{ label: "Billable units", value: `${row.units} ${row.unit}s` }] : []),
         { label: isFree ? "Sandbox ends" : "Renews", value: renews },
       ],
-      bodyNote: isFree
-        ? "Upgrading takes a minute and keeps your API keys and connected stores exactly as they are — " +
-          "only the limits and billing change. Do it before the date above to avoid any interruption."
-        : "No action is needed if your payment method is current — this is a heads-up so a lapsed " +
-          "plan never surprises your production traffic.",
+      bodyNote: note,
       ctaLabel: isFree ? "Upgrade now" : "Review subscription",
       ctaHref: isFree ? `${appUrl()}/pricing` : `${appUrl()}/dashboard`,
+      brand: { logoUrl: brand.logoUrl, color: brand.color, companyName: brand.companyName },
+      footer: renderFooter(brand),
     });
 
     const text =
@@ -139,7 +143,7 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
 
     const sent = await sendEmail({
       to: row.email,
-      subject: heading,
+      subject,
       html,
       text,
     });

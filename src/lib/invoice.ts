@@ -26,6 +26,13 @@ export type InvoiceDocument = {
   billTo: { name?: string | null; email: string };
   company: { name: string; address: string; taxId?: string | null; supportEmail: string };
   payment?: { method: string; date: Date; reference: string } | null;
+  /** Logo + accent for the header, so the document matches the emails. */
+  brand?: { logoUrl?: string; color?: string };
+  /**
+   * When the document is shown in one currency but the customer was charged in
+   * another (USD invoice, NGN Paystack charge), this line reconciles the two.
+   */
+  chargedNote?: string | null;
 };
 
 const day = (d: Date) =>
@@ -44,6 +51,15 @@ const esc = (s: string) =>
 export function renderInvoiceHtml(doc: InvoiceDocument): string {
   const money = (subunits: number) => formatCurrency(subunits, doc.currency);
   const paid = doc.kind === "receipt";
+  const accent =
+    doc.brand?.color && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(doc.brand.color)
+      ? doc.brand.color
+      : "#0f172a";
+  // Logo in the header when set, wordmark otherwise (alt text keeps the brand
+  // visible if a client blocks the image).
+  const brandmark = doc.brand?.logoUrl
+    ? `<img src="${esc(doc.brand.logoUrl)}" alt="${esc(doc.company.name)}" height="34" style="height:34px;width:auto;display:inline-block;border:0;" />`
+    : `<span style="font-size:19px;font-weight:700;color:#0f172a;letter-spacing:-0.3px;">${esc(doc.company.name)}</span>`;
 
   const meta: [string, string][] = [
     ["Invoice number", doc.invoiceNumber],
@@ -119,10 +135,10 @@ export function renderInvoiceHtml(doc: InvoiceDocument): string {
   <table role="presentation" width="100%">
     <tr>
       <td style="vertical-align:top;">
-        <h1 style="margin:0;font-size:26px;font-weight:700;color:#0f172a;letter-spacing:-0.5px;">${esc(paid ? "Receipt" : "Invoice")}</h1>
+        <h1 style="margin:0;font-size:26px;font-weight:700;color:${esc(accent)};letter-spacing:-0.5px;">${esc(paid ? "Receipt" : "Invoice")}</h1>
       </td>
       <td style="vertical-align:top;text-align:right;">
-        <span style="font-size:19px;font-weight:700;color:#0f172a;letter-spacing:-0.3px;">${esc(doc.company.name)}</span>
+        ${brandmark}
       </td>
     </tr>
   </table>
@@ -177,6 +193,12 @@ export function renderInvoiceHtml(doc: InvoiceDocument): string {
     </tr>
   </table>
 
+  ${
+    doc.chargedNote
+      ? `<p style="margin:16px 0 0;font-size:12px;color:#64748b;text-align:right;">${esc(doc.chargedNote)}</p>`
+      : ""
+  }
+
   ${paymentHistory}
 
 </td></tr>
@@ -202,6 +224,7 @@ export function renderInvoiceText(doc: InvoiceDocument): string {
     ...doc.lines.map((l) => `  ${l.description} — ${l.qty} x ${money(l.unitPrice)} = ${money(l.amount)}`),
     "",
     `Total: ${money(doc.total)} ${doc.currency}`,
+    doc.chargedNote ?? "",
     doc.payment ? `Paid with ${doc.payment.method} on ${day(doc.payment.date)}` : "",
     "",
     `Billed to ${doc.billTo.email}`,

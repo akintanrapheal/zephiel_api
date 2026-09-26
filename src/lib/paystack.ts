@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getSettings, unreadableSecrets } from "./settings";
+import { getSettings, unreadableSecrets, setSetting } from "./settings";
 
 /**
  * Paystack's API root.
@@ -109,6 +109,23 @@ export async function getLiveUsdToNgn(fallback: number): Promise<number> {
   return fallback;
 }
 
+/**
+ * Refresh the stored fallback rate from the live source, best-effort.
+ *
+ * Charges already use the live rate at the moment of checkout; this keeps the
+ * configured fallback current (run daily by the cron) so that if the live
+ * lookup is ever unavailable at charge time, the fallback is at most a day old
+ * rather than a stale hand-typed number.
+ */
+export async function refreshStoredUsdToNgn(): Promise<number | null> {
+  const live = await getLiveUsdToNgn(0);
+  if (Number.isFinite(live) && live > 0) {
+    await setSetting("usd_to_ngn", String(Math.round(live * 100) / 100)).catch(() => {});
+    return live;
+  }
+  return null;
+}
+
 async function requireSecretKey() {
   const { secretKey } = await getPaystackConfig();
   if (!secretKey) {
@@ -128,8 +145,11 @@ export function toSubunits(usd: number, config: Pick<PaystackConfig, "currency" 
 
 export function formatCurrency(subunits: number, currency = "NGN") {
   const major = subunits / 100;
+  // Format in the currency's own home locale so USD shows "$" (not "US$") and
+  // NGN shows "₦".
+  const locale = currency === "USD" ? "en-US" : "en-NG";
   try {
-    return new Intl.NumberFormat("en-NG", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       maximumFractionDigits: 2,

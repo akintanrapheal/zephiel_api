@@ -12,7 +12,16 @@ export type SettingKey =
   | "email_from"
   | "company_name"
   | "company_address"
-  | "company_tax_id";
+  | "company_tax_id"
+  // Branding applied to every email, receipt, invoice and reminder.
+  | "brand_logo_url"
+  | "brand_color"
+  | "email_footer"
+  // Currency shown on invoices and receipts (charging still happens in the
+  // Paystack currency at the live rate; this is display only).
+  | "invoice_currency"
+  // JSON blob of per-template copy overrides (see lib/email-templates.ts).
+  | "email_templates";
 
 const SECRET_KEYS: SettingKey[] = ["paystack_secret_key", "resend_api_key"];
 

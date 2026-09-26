@@ -5,11 +5,21 @@ import { z } from "zod";
 import { requireAdmin, hashPassword, verifyPassword, createSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { clearSetting, setSetting } from "@/lib/settings";
-import { getPaystackConfig, testSecretKey } from "@/lib/paystack";
+import { getPaystackConfig, testSecretKey, formatCurrency } from "@/lib/paystack";
 import { getEmailConfig, sendEmail, emailShell } from "@/lib/email";
-import { sampleInvoiceDocument } from "@/server/invoices";
+import { getBranding, renderFooter, isHexColor } from "@/lib/branding";
+import {
+  getTemplates,
+  fillTemplate,
+  serialiseTemplates,
+  DEFAULT_TEMPLATES,
+  type TemplateKind,
+  type Template,
+} from "@/lib/email-templates";
+import { sampleInvoiceDocument, buildManualInvoiceDocument } from "@/server/invoices";
 import { renderInvoiceHtml, renderInvoiceText } from "@/lib/invoice";
 import { sweepRenewalReminders } from "@/server/notifications";
+import { appUrl } from "@/lib/app-url";
 import { applySchema, getSchemaStatus } from "@/server/schema-status";
 import { seedCatalogue } from "@/server/catalog-seed";
 import type { FormState } from "./admin";
@@ -169,28 +179,54 @@ export async function sendSampleEmail(_prev: FormState, formData: FormData): Pro
   const { to, kind } = parsed.data;
 
   if (kind === "reminder") {
+    const [brand, templates] = await Promise.all([getBranding(), getTemplates()]);
+    const renews = new Date(Date.now() + 6048e5);
+    const t = fillTemplate(templates.renewal, {
+      firstName: "",
+      name: "",
+      api: "Multistore",
+      plan: "Standard (3 stores)",
+      days: "7",
+      date: renews.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+      amount: "$5",
+      company: brand.companyName,
+    });
+
     const sent = await sendEmail({
       to,
-      subject: "[Sample] Your Zephiel subscription renews in 7 days",
+      subject: `[Sample] ${t.subject}`,
       html: emailShell({
-        heading: "Your subscription renews in 7 days",
-        intro: "This is a sample renewal reminder sent from the admin console. No action is needed.",
+        heading: t.heading,
+        intro: t.intro,
         rows: [
           { label: "API", value: "Multistore" },
           { label: "Plan", value: "Standard (3 stores)" },
-          { label: "Renews", value: new Date(Date.now() + 6048e5).toDateString() },
+          { label: "Renews", value: renews.toDateString() },
         ],
+        bodyNote: t.note,
+        ctaLabel: "Review subscription",
+        ctaHref: `${appUrl()}/dashboard`,
+        brand: { logoUrl: brand.logoUrl, color: brand.color, companyName: brand.companyName },
         footer: "Sample message — this does not relate to a real subscription.",
       }),
-      text: "Sample renewal reminder from the Zephiel admin console.",
+      text: `${t.heading}\n\n${t.intro}\n\nSample renewal reminder from the ${brand.companyName} admin console.`,
     });
     return sent.ok ? { ok: `Sample reminder sent to ${to}.` } : { error: `Could not send: ${sent.error}` };
   }
 
-  const doc = await sampleInvoiceDocument(kind);
+  const [doc, templates] = await Promise.all([
+    sampleInvoiceDocument(kind),
+    getTemplates(),
+  ]);
+  const { subject } = fillTemplate(templates[kind], {
+    company: doc.company.name,
+    invoiceNumber: doc.invoiceNumber,
+    amount: formatCurrency(doc.total, doc.currency),
+  });
+
   const sent = await sendEmail({
     to,
-    subject: `[Sample] ${doc.company.name} ${kind} ${doc.invoiceNumber}`,
+    subject: `[Sample] ${subject}`,
     html: renderInvoiceHtml(doc),
     text: renderInvoiceText(doc),
   });
@@ -206,21 +242,25 @@ export async function sendTestEmail(_prev: FormState): Promise<FormState> {
   const config = await getEmailConfig();
   if (!config.apiKey) return { error: "No email provider configured yet." };
 
+  const [brand, templates] = await Promise.all([getBranding(), getTemplates()]);
+  const t = fillTemplate(templates.test, { company: brand.companyName });
+
   const sent = await sendEmail({
     to: admin.email,
-    subject: "Zephiel API — test email",
+    subject: t.subject,
     html: emailShell({
-      heading: "Your email settings work",
-      intro:
-        "This is a test message from the Zephiel admin console. Renewal reminders will look like this.",
+      heading: t.heading,
+      intro: t.intro,
       rows: [
         { label: "Sender", value: config.from },
         { label: "Provider", value: "Resend" },
         { label: "Key source", value: config.source === "settings" ? "Admin console" : "Environment" },
       ],
-      footer: "Sent manually from the admin console.",
+      bodyNote: t.note,
+      brand: { logoUrl: brand.logoUrl, color: brand.color, companyName: brand.companyName },
+      footer: renderFooter(brand),
     }),
-    text: "Your Zephiel email settings work. Renewal reminders will be delivered this way.",
+    text: `${t.heading}\n\n${t.intro}`,
   });
 
   return sent.ok
@@ -349,6 +389,127 @@ export async function saveCompanyDetails(_prev: FormState, formData: FormData): 
 
   revalidatePath("/admin/settings", "layout");
   return { ok: "Invoice details saved." };
+}
+
+const brandingSchema = z.object({
+  logoUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => v === "" || /^https:\/\/\S+$/i.test(v), "Use a full https:// image URL."),
+  color: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || isHexColor(v), "Use a hex colour like #2445d6."),
+  footer: z.string().trim().max(300),
+  invoiceCurrency: z.enum(["USD", "NGN"]),
+});
+
+/**
+ * Branding applied to every email, receipt, invoice and reminder: the logo, the
+ * accent colour, the footer line, and which currency documents are shown in.
+ */
+export async function saveBrandingSettings(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+
+  const parsed = brandingSchema.safeParse({
+    logoUrl: String(formData.get("logoUrl") ?? ""),
+    color: String(formData.get("color") ?? ""),
+    footer: String(formData.get("footer") ?? ""),
+    invoiceCurrency: String(formData.get("invoiceCurrency") ?? "USD"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
+
+  await setSetting("brand_logo_url", parsed.data.logoUrl, admin.id);
+  await setSetting("brand_color", parsed.data.color, admin.id);
+  await setSetting("email_footer", parsed.data.footer, admin.id);
+  await setSetting("invoice_currency", parsed.data.invoiceCurrency, admin.id);
+
+  revalidatePath("/admin/settings", "layout");
+  return { ok: "Branding saved — it now applies to every email and document." };
+}
+
+/**
+ * Save the editable copy for each message type.
+ *
+ * The form posts subject/heading/intro/note for every kind; anything left equal
+ * to the built-in default is dropped, so upgrading the defaults later still
+ * reaches templates the operator never customised.
+ */
+export async function saveEmailTemplates(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+
+  const kinds = Object.keys(DEFAULT_TEMPLATES) as TemplateKind[];
+  const edited = {} as Record<TemplateKind, Template>;
+  for (const kind of kinds) {
+    edited[kind] = {
+      subject: String(formData.get(`${kind}.subject`) ?? "").slice(0, 200),
+      heading: String(formData.get(`${kind}.heading`) ?? "").slice(0, 200),
+      intro: String(formData.get(`${kind}.intro`) ?? "").slice(0, 1000),
+      note: String(formData.get(`${kind}.note`) ?? "").slice(0, 1000),
+    };
+  }
+
+  await setSetting("email_templates", serialiseTemplates(edited), admin.id);
+  revalidatePath("/admin/settings", "layout");
+  return { ok: "Templates saved." };
+}
+
+const manualInvoiceSchema = z.object({
+  to: z.string().trim().toLowerCase().email("Enter the customer's email address."),
+  name: z.string().trim().max(120),
+  amountUsd: z.coerce.number().positive("Enter an amount greater than zero.").max(1_000_000),
+  description: z.string().trim().min(1, "Describe what the invoice is for.").max(300),
+  dueInDays: z.coerce.number().int().min(0).max(365),
+});
+
+/**
+ * Email a one-off invoice document to a customer.
+ *
+ * Document only: nothing is charged and no payment row is created — it is a bill
+ * on paper for an off-platform arrangement. The amount is entered in USD, which
+ * is also how it is shown.
+ */
+export async function sendManualInvoice(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+
+  const config = await getEmailConfig();
+  if (!config.apiKey) return { error: "Configure an email provider first." };
+
+  const parsed = manualInvoiceSchema.safeParse({
+    to: String(formData.get("to") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    amountUsd: formData.get("amountUsd") ?? "",
+    description: String(formData.get("description") ?? ""),
+    dueInDays: formData.get("dueInDays") || 14,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
+
+  const doc = await buildManualInvoiceDocument({
+    to: parsed.data.to,
+    name: parsed.data.name || null,
+    amountUsd: parsed.data.amountUsd,
+    description: parsed.data.description,
+    dueInDays: parsed.data.dueInDays,
+  });
+
+  const templates = await getTemplates();
+  const { subject } = fillTemplate(templates.invoice, {
+    company: doc.company.name,
+    invoiceNumber: doc.invoiceNumber,
+    amount: formatCurrency(doc.total, doc.currency),
+  });
+
+  const sent = await sendEmail({
+    to: doc.billTo.email,
+    subject,
+    html: renderInvoiceHtml(doc),
+    text: renderInvoiceText(doc),
+  });
+
+  return sent.ok
+    ? { ok: `Invoice ${doc.invoiceNumber} for ${formatCurrency(doc.total, doc.currency)} sent to ${doc.billTo.email}.` }
+    : { error: `Could not send: ${sent.error}` };
 }
 
 const adminEmailSchema = z.object({
