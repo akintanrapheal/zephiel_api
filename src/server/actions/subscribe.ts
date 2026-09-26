@@ -7,6 +7,7 @@ import { sql } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth";
 import { getPaystackConfig, initializeTransaction, toSubunits, getLiveUsdToNgn } from "@/lib/paystack";
 import { appUrl } from "@/lib/app-url";
+import { sendCancellationEmail } from "@/server/lifecycle-emails";
 import {
   isContactSales,
   isBillingInterval,
@@ -172,9 +173,27 @@ export async function cancelSubscription(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
-  await sql`
+  const [cancelled] = await sql<{ id: string }[]>`
     UPDATE subscriptions SET status = 'cancelled', updated_at = now()
     WHERE id = ${id} AND user_id = ${user.id}
+    RETURNING id
   `;
   revalidatePath("/dashboard");
+
+  // Confirm the cancellation by email (best-effort — never blocks the action).
+  if (cancelled) {
+    const [info] = await sql<{ api_name: string | null; plan_name: string | null }[]>`
+      SELECT a.name AS api_name, p.name AS plan_name
+      FROM subscriptions s
+      JOIN apis a ON a.id = s.api_id
+      JOIN plans p ON p.id = s.plan_id
+      WHERE s.id = ${id} LIMIT 1
+    `;
+    await sendCancellationEmail({
+      to: user.email,
+      name: user.name,
+      api: info?.api_name ?? null,
+      plan: info?.plan_name ?? null,
+    });
+  }
 }

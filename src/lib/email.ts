@@ -68,14 +68,22 @@ export async function sendEmail(params: {
   }
 }
 
-/** Logo + wordmark for the top of a message. */
+/** Logo + wordmark + footer identity for the top and bottom of a message. */
 export type EmailBrand = {
   logoUrl?: string;
   color?: string;
   companyName?: string;
+  companyAddress?: string;
+  supportEmail?: string;
 };
 
-/** Shared shell so every message looks like it came from the same product. */
+/**
+ * Shared shell so every message looks like it came from the same product.
+ *
+ * Laid out like the polished lifecycle emails customers expect: a centred logo,
+ * a large heading, the body, a primary button with an optional secondary link,
+ * and a footer carrying the company name, address and a support link.
+ */
 export function emailShell(opts: {
   heading: string;
   intro: string;
@@ -83,48 +91,80 @@ export function emailShell(opts: {
   bodyNote?: string;
   ctaLabel?: string;
   ctaHref?: string;
+  /** A quieter text link shown under the primary button (e.g. "Go to billing settings"). */
+  ctaSecondaryLabel?: string;
+  ctaSecondaryHref?: string;
   footer?: string;
   brand?: EmailBrand;
 }) {
   const brandColor = safeColor(opts.brand?.color) ?? "#2445d6";
   const company = opts.brand?.companyName ?? "Zephiel API";
+  const address = opts.brand?.companyAddress?.trim();
+  const support = opts.brand?.supportEmail?.trim();
 
   const rows = (opts.rows ?? [])
     .map(
       (r) => `
         <tr>
-          <td style="padding:6px 0;color:#64748b;font-size:14px;">${escapeHtml(r.label)}</td>
-          <td style="padding:6px 0;color:#0f172a;font-size:14px;font-weight:600;text-align:right;">${escapeHtml(r.value)}</td>
+          <td style="padding:8px 0;color:#64748b;font-size:14px;">${escapeHtml(r.label)}</td>
+          <td style="padding:8px 0;color:#0f172a;font-size:14px;font-weight:600;text-align:right;">${escapeHtml(r.value)}</td>
         </tr>`
+    )
+    .join("");
+
+  // Intro may carry paragraph breaks (\n\n) — render each as its own <p>.
+  const introHtml = escapeHtml(opts.intro)
+    .split(/\n{2,}/)
+    .map(
+      (p) =>
+        `<p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:#334155;">${p.replace(/\n/g, "<br>")}</p>`
     )
     .join("");
 
   const cta =
     opts.ctaHref && opts.ctaLabel
-      ? `<a href="${opts.ctaHref}" style="display:inline-block;margin-top:24px;background:${brandColor};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;">${escapeHtml(opts.ctaLabel)}</a>`
+      ? `<div style="margin-top:28px;"><a href="${opts.ctaHref}" style="display:inline-block;background:${brandColor};color:#ffffff;text-decoration:none;padding:13px 26px;border-radius:12px;font-size:15px;font-weight:600;">${escapeHtml(opts.ctaLabel)}</a></div>`
+      : "";
+
+  const ctaSecondary =
+    opts.ctaSecondaryHref && opts.ctaSecondaryLabel
+      ? `<div style="margin-top:14px;"><a href="${opts.ctaSecondaryHref}" style="color:#475569;text-decoration:none;font-size:14px;font-weight:600;border-bottom:1px solid #cbd5e1;padding-bottom:1px;">${escapeHtml(opts.ctaSecondaryLabel)}</a></div>`
       : "";
 
   // Logo image when configured, with the wordmark as its alt text so a client
   // that blocks images still shows the brand name.
   const brandmark = opts.brand?.logoUrl
-    ? `<img src="${escapeHtml(opts.brand.logoUrl)}" alt="${escapeHtml(company)}" height="32" style="height:32px;width:auto;display:block;border:0;outline:none;text-decoration:none;" />`
-    : `<div style="font-size:15px;font-weight:700;color:#0f172a;">${escapeHtml(company)}</div>`;
+    ? `<img src="${escapeHtml(opts.brand.logoUrl)}" alt="${escapeHtml(company)}" height="34" style="height:34px;width:auto;display:inline-block;border:0;outline:none;text-decoration:none;" />`
+    : `<div style="font-size:17px;font-weight:700;color:#0f172a;">${escapeHtml(company)}</div>`;
+
+  const footerLine = opts.footer ?? `You are receiving this because you have an account on ${company}.`;
+  const footerBits = [
+    `<div style="font-weight:600;color:#475569;">${escapeHtml(company)}</div>`,
+    address ? `<div style="margin-top:4px;">${escapeHtml(address).replace(/\n/g, "<br>")}</div>` : "",
+    support
+      ? `<div style="margin-top:8px;"><a href="mailto:${escapeHtml(support)}" style="color:#94a3b8;text-decoration:underline;">Help</a></div>`
+      : "",
+    `<div style="margin-top:10px;">${escapeHtml(footerLine)}</div>`,
+  ]
+    .filter(Boolean)
+    .join("");
 
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;">
-    <tr><td style="padding:32px;">
-      ${brandmark}
-      <h1 style="margin:20px 0 0;font-size:20px;line-height:1.35;color:#0f172a;">${escapeHtml(opts.heading)}</h1>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#475569;">${escapeHtml(opts.intro)}</p>
-      ${rows ? `<table role="presentation" style="width:100%;margin-top:22px;border-top:1px solid #e2e8f0;">${rows}</table>` : ""}
-      ${opts.bodyNote ? `<p style="margin:20px 0 0;font-size:14px;line-height:1.7;color:#475569;">${escapeHtml(opts.bodyNote)}</p>` : ""}
+  <table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:18px;border:1px solid #e6eaf1;">
+    <tr><td style="padding:40px 40px 36px;">
+      <div style="text-align:center;margin-bottom:28px;">${brandmark}</div>
+      <h1 style="margin:0;font-size:26px;line-height:1.25;font-weight:700;color:#0f172a;letter-spacing:-0.4px;">${escapeHtml(opts.heading)}</h1>
+      ${introHtml}
+      ${rows ? `<table role="presentation" width="100%" style="margin-top:24px;border-top:1px solid #e6eaf1;">${rows}</table>` : ""}
+      ${opts.bodyNote ? `<p style="margin:22px 0 0;font-size:14px;line-height:1.7;color:#64748b;">${escapeHtml(opts.bodyNote)}</p>` : ""}
       ${cta}
+      ${ctaSecondary}
     </td></tr>
   </table>
-  <p style="max-width:560px;margin:16px auto 0;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
-    ${escapeHtml(opts.footer ?? `You are receiving this because you have an account on ${company}.`)}
-  </p>
+  <div style="max-width:560px;margin:22px auto 0;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">
+    ${footerBits}
+  </div>
 </body></html>`;
 }
 

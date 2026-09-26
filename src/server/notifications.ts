@@ -1,7 +1,7 @@
 import "server-only";
 import { sql } from "@/lib/db";
 import { emailShell, sendEmail } from "@/lib/email";
-import { getBranding, renderFooter } from "@/lib/branding";
+import { getBranding, renderFooter, emailBrand } from "@/lib/branding";
 import { getTemplates, fillTemplate } from "@/lib/email-templates";
 import { appUrl } from "@/lib/app-url";
 
@@ -132,7 +132,7 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
       bodyNote: note,
       ctaLabel: isFree ? "Upgrade now" : "Review subscription",
       ctaHref: isFree ? `${appUrl()}/pricing` : `${appUrl()}/dashboard`,
-      brand: { logoUrl: brand.logoUrl, color: brand.color, companyName: brand.companyName },
+      brand: emailBrand(brand),
       footer: renderFooter(brand),
     });
 

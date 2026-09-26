@@ -7,7 +7,7 @@ import { sql } from "@/lib/db";
 import { clearSetting, setSetting } from "@/lib/settings";
 import { getPaystackConfig, testSecretKey, formatCurrency } from "@/lib/paystack";
 import { getEmailConfig, sendEmail, emailShell } from "@/lib/email";
-import { getBranding, renderFooter, isHexColor } from "@/lib/branding";
+import { getBranding, renderFooter, isHexColor, emailBrand } from "@/lib/branding";
 import {
   getTemplates,
   fillTemplate,
@@ -206,7 +206,7 @@ export async function sendSampleEmail(_prev: FormState, formData: FormData): Pro
         bodyNote: t.note,
         ctaLabel: "Review subscription",
         ctaHref: `${appUrl()}/dashboard`,
-        brand: { logoUrl: brand.logoUrl, color: brand.color, companyName: brand.companyName },
+        brand: emailBrand(brand),
         footer: "Sample message — this does not relate to a real subscription.",
       }),
       text: `${t.heading}\n\n${t.intro}\n\nSample renewal reminder from the ${brand.companyName} admin console.`,
@@ -257,7 +257,7 @@ export async function sendTestEmail(_prev: FormState): Promise<FormState> {
         { label: "Key source", value: config.source === "settings" ? "Admin console" : "Environment" },
       ],
       bodyNote: t.note,
-      brand: { logoUrl: brand.logoUrl, color: brand.color, companyName: brand.companyName },
+      brand: emailBrand(brand),
       footer: renderFooter(brand),
     }),
     text: `${t.heading}\n\n${t.intro}`,
@@ -509,6 +509,125 @@ export async function sendManualInvoice(_prev: FormState, formData: FormData): P
 
   return sent.ok
     ? { ok: `Invoice ${doc.invoiceNumber} for ${formatCurrency(doc.total, doc.currency)} sent to ${doc.billTo.email}.` }
+    : { error: `Could not send: ${sent.error}` };
+}
+
+const lifecycleSchema = z.object({
+  kind: z.enum(["receipt", "reminder", "paused", "cancelled"]),
+  to: z.string().trim().toLowerCase().email("Enter the customer's email address."),
+  name: z.string().trim().max(120),
+  api: z.string().trim().max(120),
+  plan: z.string().trim().max(120),
+  amountUsd: z.coerce.number().min(0).max(1_000_000).optional(),
+  date: z.string().trim().max(60),
+  description: z.string().trim().max(300),
+});
+
+/**
+ * Send a real (not sample) lifecycle message to a customer by hand.
+ *
+ * Receipts go out as the formal document; reminders, pause and cancel notices
+ * go out as the branded shell email, using the editable template copy and a CTA
+ * suited to the message.
+ */
+export async function sendLifecycleEmail(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+
+  const config = await getEmailConfig();
+  if (!config.apiKey) return { error: "Configure an email provider first." };
+
+  const parsed = lifecycleSchema.safeParse({
+    kind: String(formData.get("kind") ?? "reminder"),
+    to: String(formData.get("to") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    api: String(formData.get("api") ?? ""),
+    plan: String(formData.get("plan") ?? ""),
+    amountUsd: formData.get("amountUsd") || undefined,
+    date: String(formData.get("date") ?? ""),
+    description: String(formData.get("description") ?? ""),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
+
+  const f = parsed.data;
+  const [brand, templates] = await Promise.all([getBranding(), getTemplates()]);
+  const firstName = f.name ? ` ${f.name.split(" ")[0]}` : "";
+  const api = f.api || `your ${brand.companyName} subscription`;
+  const amountText = f.amountUsd != null ? formatCurrency(Math.round(f.amountUsd * 100), "USD") : "";
+
+  // Receipts are a formal document, consistent with "Issue an invoice".
+  if (f.kind === "receipt") {
+    if (f.amountUsd == null || f.amountUsd <= 0) return { error: "Enter the amount paid (USD)." };
+    if (!f.description) return { error: "Describe what the payment was for." };
+
+    const doc = await buildManualInvoiceDocument({
+      to: f.to,
+      name: f.name || null,
+      amountUsd: f.amountUsd,
+      description: f.description,
+      kind: "receipt",
+    });
+    const { subject } = fillTemplate(templates.receipt, {
+      company: doc.company.name,
+      invoiceNumber: doc.invoiceNumber,
+      amount: formatCurrency(doc.total, doc.currency),
+    });
+    const sent = await sendEmail({
+      to: doc.billTo.email,
+      subject,
+      html: renderInvoiceHtml(doc),
+      text: renderInvoiceText(doc),
+    });
+    return sent.ok
+      ? { ok: `Receipt ${doc.invoiceNumber} sent to ${doc.billTo.email}.` }
+      : { error: `Could not send: ${sent.error}` };
+  }
+
+  // reminder / paused / cancelled → branded shell email with a fitting CTA.
+  const vars = {
+    firstName,
+    name: f.name,
+    api,
+    plan: f.plan || "—",
+    days: f.date || "",
+    date: f.date || "",
+    amount: amountText,
+    company: brand.companyName,
+  };
+  // "reminder" in the UI maps to the renewal template.
+  const templateKey = f.kind === "reminder" ? "renewal" : f.kind;
+  const t = fillTemplate(templates[templateKey], vars);
+
+  const cta =
+    f.kind === "paused"
+      ? { ctaLabel: "Pay invoice", ctaHref: `${appUrl()}/dashboard/billing`, ctaSecondaryLabel: "Go to billing settings", ctaSecondaryHref: `${appUrl()}/dashboard` }
+      : f.kind === "cancelled"
+        ? { ctaLabel: "Resubscribe", ctaHref: `${appUrl()}/pricing` }
+        : { ctaLabel: "Review subscription", ctaHref: `${appUrl()}/dashboard` };
+
+  const rows = [
+    { label: "API", value: f.api || brand.companyName },
+    ...(f.plan ? [{ label: "Plan", value: f.plan }] : []),
+    ...(amountText ? [{ label: "Amount", value: amountText }] : []),
+    ...(f.date ? [{ label: f.kind === "reminder" ? "Renews" : "Date", value: f.date }] : []),
+  ];
+
+  const sent = await sendEmail({
+    to: f.to,
+    subject: t.subject,
+    html: emailShell({
+      heading: t.heading,
+      intro: t.intro,
+      rows,
+      bodyNote: t.note,
+      ...cta,
+      brand: emailBrand(brand),
+      footer: renderFooter(brand),
+    }),
+    text: `${t.heading}\n\n${t.intro}\n\n${t.note}`,
+  });
+
+  return sent.ok
+    ? { ok: `${f.kind[0].toUpperCase()}${f.kind.slice(1)} message sent to ${f.to}.` }
     : { error: `Could not send: ${sent.error}` };
 }
 

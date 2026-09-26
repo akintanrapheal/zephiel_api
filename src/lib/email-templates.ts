@@ -8,7 +8,14 @@ import { getSettings } from "./settings";
  * and `test` are the structured documents / test send, where only the subject
  * line is copy (the body is a rendered document).
  */
-export type TemplateKind = "renewal" | "sandbox" | "receipt" | "invoice" | "test";
+export type TemplateKind =
+  | "renewal"
+  | "sandbox"
+  | "paused"
+  | "cancelled"
+  | "receipt"
+  | "invoice"
+  | "test";
 
 export type Template = {
   subject: string;
@@ -21,6 +28,8 @@ export type Template = {
 export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   renewal: "Paid renewal reminder",
   sandbox: "Free sandbox — upgrade reminder",
+  paused: "Subscription paused",
+  cancelled: "Subscription cancelled",
   receipt: "Payment receipt",
   invoice: "Invoice (amount due)",
   test: "Test email",
@@ -33,6 +42,8 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
 export const TEMPLATE_PLACEHOLDERS: Record<TemplateKind, string[]> = {
   renewal: ["{firstName}", "{name}", "{api}", "{plan}", "{days}", "{date}", "{amount}", "{company}"],
   sandbox: ["{firstName}", "{name}", "{api}", "{plan}", "{days}", "{date}", "{company}"],
+  paused: ["{firstName}", "{name}", "{api}", "{plan}", "{amount}", "{company}"],
+  cancelled: ["{firstName}", "{name}", "{api}", "{plan}", "{date}", "{company}"],
   receipt: ["{company}", "{invoiceNumber}", "{amount}"],
   invoice: ["{company}", "{invoiceNumber}", "{amount}"],
   test: ["{company}"],
@@ -54,6 +65,20 @@ export const DEFAULT_TEMPLATES: Record<TemplateKind, Template> = {
       "Hello{firstName}, your free {api} sandbox access ends on {date}. Upgrade to a paid plan before then to keep your integration running — once the sandbox ends, calls from your project start returning 403 errors and any sync against it will fail until you upgrade.",
     note:
       "Upgrading takes a minute and keeps your API keys and connected stores exactly as they are — only the limits and billing change. Do it before the date above to avoid any interruption.",
+  },
+  paused: {
+    subject: "Your {company} subscription is paused",
+    heading: "Your subscription access has been paused",
+    intro:
+      "Hello{firstName}, your most recent payment was unsuccessful and access to your {api} subscription has been paused. To restore access, please settle the outstanding invoice.\n\nIf you pay a late invoice, your billing cycle resets to the date of payment.",
+    note: "Calls from your integration will return 403 until the plan is active again.",
+  },
+  cancelled: {
+    subject: "Your {company} subscription is cancelled",
+    heading: "Your subscription has been cancelled",
+    intro:
+      "Hello{firstName}, your {api} subscription has been cancelled and will not renew. You can keep using it until the end of the current period; after that, calls will return 403.\n\nChanged your mind? You can resubscribe at any time.",
+    note: "Thanks for being with {company}.",
   },
   receipt: {
     subject: "{company} receipt {invoiceNumber} — {amount}",

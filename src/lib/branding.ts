@@ -11,6 +11,8 @@ export type Branding = {
   footer: string;
   /** Display name used in the wordmark and as {company} in copy. */
   companyName: string;
+  /** Registered address, shown in the email footer (like Anthropic's). */
+  companyAddress: string;
   supportEmail: string;
 };
 
@@ -23,6 +25,7 @@ export function defaultBranding(): Branding {
     color: "#2445d6",
     footer: "You are receiving this because you have an account on {company}.",
     companyName: "Zephiel API",
+    companyAddress: "",
     supportEmail: "support@zephiel.com",
   };
 }
@@ -45,6 +48,7 @@ export async function getBranding(): Promise<Branding> {
     color: isHexColor(settings.brand_color) ? settings.brand_color! : d.color,
     footer: settings.email_footer || d.footer,
     companyName,
+    companyAddress: settings.company_address || d.companyAddress,
     supportEmail: settings.support_email || d.supportEmail,
   };
 }
@@ -52,6 +56,17 @@ export async function getBranding(): Promise<Branding> {
 /** The footer line with {company} filled in. */
 export function renderFooter(brand: Branding): string {
   return brand.footer.replace(/\{company\}/g, brand.companyName);
+}
+
+/** The subset of branding the email shell needs, in one object. */
+export function emailBrand(brand: Branding) {
+  return {
+    logoUrl: brand.logoUrl,
+    color: brand.color,
+    companyName: brand.companyName,
+    companyAddress: brand.companyAddress,
+    supportEmail: brand.supportEmail,
+  };
 }
 
 /** True for #rgb / #rrggbb, the only forms we let into inline styles. */
