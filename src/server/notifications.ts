@@ -68,7 +68,11 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
       0,
       Math.round((new Date(row.period_end).getTime() - Date.now()) / 86_400_000)
     );
-    const kind = `renewal_${daysLeft <= 1 ? 1 : daysLeft <= 7 ? 7 : 14}d`;
+    // Free/sandbox trials get an upgrade-focused message (and their own notification kind) instead of
+    // the "renews" wording — there's nothing to renew: it simply ends and their integration breaks.
+    const isFree = Number(row.price) === 0;
+    const bucket = daysLeft <= 1 ? 1 : daysLeft <= 7 ? 7 : 14;
+    const kind = `${isFree ? "sandbox" : "renewal"}_${bucket}d`;
 
     // Claim the send first. A duplicate key means another run already did it.
     try {
@@ -91,15 +95,23 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
       year: "numeric",
     });
 
-    const heading =
-      daysLeft <= 1
-        ? `${row.api_name} renews tomorrow`
-        : `${row.api_name} renews in ${daysLeft} days`;
+    const firstName = row.name ? ` ${row.name.split(" ")[0]}` : "";
 
-    const intro =
-      `Hello${row.name ? ` ${row.name.split(" ")[0]}` : ""}, your ${row.api_name} subscription ` +
-      `is due to renew on ${renews}. If it lapses, calls from your integration start returning ` +
-      `403 and any sync running against it will fail until the plan is active again.`;
+    const heading = isFree
+      ? (daysLeft <= 1
+          ? `Your free ${row.api_name} sandbox ends tomorrow`
+          : `Your free ${row.api_name} sandbox ends in ${daysLeft} days`)
+      : (daysLeft <= 1
+          ? `${row.api_name} renews tomorrow`
+          : `${row.api_name} renews in ${daysLeft} days`);
+
+    const intro = isFree
+      ? `Hello${firstName}, your free ${row.api_name} sandbox access ends on ${renews}. ` +
+        `Upgrade to a paid plan before then to keep your integration running — once the sandbox ends, ` +
+        `calls from your project start returning 403 errors and any sync against it will fail until you upgrade.`
+      : `Hello${firstName}, your ${row.api_name} subscription is due to renew on ${renews}. ` +
+        `If it lapses, calls from your integration start returning 403 and any sync running against it ` +
+        `will fail until the plan is active again.`;
 
     const html = emailShell({
       heading,
@@ -107,21 +119,23 @@ export async function sweepRenewalReminders(): Promise<SweepResult> {
       rows: [
         { label: "API", value: row.api_name },
         { label: "Plan", value: row.plan_name },
-        { label: "Monthly", value: monthly === 0 ? "Free" : `$${monthly.toLocaleString()}` },
+        ...(isFree ? [] : [{ label: "Monthly", value: monthly === 0 ? "Free" : `$${monthly.toLocaleString()}` }]),
         ...(row.unit ? [{ label: "Billable units", value: `${row.units} ${row.unit}s` }] : []),
-        { label: "Renews", value: renews },
+        { label: isFree ? "Sandbox ends" : "Renews", value: renews },
       ],
-      bodyNote:
-        "No action is needed if your payment method is current — this is a heads-up so a lapsed " +
-        "plan never surprises your production traffic.",
-      ctaLabel: "Review subscription",
-      ctaHref: `${appUrl()}/dashboard`,
+      bodyNote: isFree
+        ? "Upgrading takes a minute and keeps your API keys and connected stores exactly as they are — " +
+          "only the limits and billing change. Do it before the date above to avoid any interruption."
+        : "No action is needed if your payment method is current — this is a heads-up so a lapsed " +
+          "plan never surprises your production traffic.",
+      ctaLabel: isFree ? "Upgrade now" : "Review subscription",
+      ctaHref: isFree ? `${appUrl()}/pricing` : `${appUrl()}/dashboard`,
     });
 
     const text =
       `${heading}\n\n${intro}\n\n` +
-      `API: ${row.api_name}\nPlan: ${row.plan_name}\nRenews: ${renews}\n\n` +
-      `Review: ${appUrl()}/dashboard\n`;
+      `API: ${row.api_name}\nPlan: ${row.plan_name}\n${isFree ? "Sandbox ends" : "Renews"}: ${renews}\n\n` +
+      `${isFree ? "Upgrade" : "Review"}: ${appUrl()}/${isFree ? "pricing" : "dashboard"}\n`;
 
     const sent = await sendEmail({
       to: row.email,
