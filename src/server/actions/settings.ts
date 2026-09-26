@@ -17,7 +17,8 @@ import {
   type Template,
 } from "@/lib/email-templates";
 import { sampleInvoiceDocument, buildManualInvoiceDocument } from "@/server/invoices";
-import { renderInvoiceHtml, renderInvoiceText } from "@/lib/invoice";
+import { renderInvoicePdf } from "@/server/receipt-pdf";
+import { renderInvoiceHtml, renderInvoiceText, type InvoiceDocument } from "@/lib/invoice";
 import { sweepRenewalReminders } from "@/server/notifications";
 import { appUrl } from "@/lib/app-url";
 import { applySchema, getSchemaStatus } from "@/server/schema-status";
@@ -455,6 +456,17 @@ export async function saveEmailTemplates(_prev: FormState, formData: FormData): 
   return { ok: "Templates saved." };
 }
 
+/** Build the PDF attachment for a document, best-effort (undefined on failure). */
+async function pdfAttachment(doc: InvoiceDocument) {
+  try {
+    const pdf = await renderInvoicePdf(doc);
+    return [{ filename: `${doc.kind}-${doc.invoiceNumber}.pdf`, content: pdf }];
+  } catch (err) {
+    console.error("PDF generation failed:", err);
+    return undefined;
+  }
+}
+
 const manualInvoiceSchema = z.object({
   to: z.string().trim().toLowerCase().email("Enter the customer's email address."),
   name: z.string().trim().max(120),
@@ -505,6 +517,7 @@ export async function sendManualInvoice(_prev: FormState, formData: FormData): P
     subject,
     html: renderInvoiceHtml(doc),
     text: renderInvoiceText(doc),
+    attachments: await pdfAttachment(doc),
   });
 
   return sent.ok
@@ -576,6 +589,7 @@ export async function sendLifecycleEmail(_prev: FormState, formData: FormData): 
       subject,
       html: renderInvoiceHtml(doc),
       text: renderInvoiceText(doc),
+      attachments: await pdfAttachment(doc),
     });
     return sent.ok
       ? { ok: `Receipt ${doc.invoiceNumber} sent to ${doc.billTo.email}.` }

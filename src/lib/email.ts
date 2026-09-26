@@ -36,6 +36,8 @@ export async function sendEmail(params: {
   subject: string;
   html: string;
   text: string;
+  /** Files to attach. `content` is the raw bytes; base64 is done here. */
+  attachments?: { filename: string; content: Uint8Array }[];
 }): Promise<SendResult> {
   const config = await getEmailConfig();
   if (!config.apiKey) return { ok: false, error: "No email provider configured." };
@@ -53,6 +55,14 @@ export async function sendEmail(params: {
         subject: params.subject,
         html: params.html,
         text: params.text,
+        ...(params.attachments?.length
+          ? {
+              attachments: params.attachments.map((a) => ({
+                filename: a.filename,
+                content: Buffer.from(a.content).toString("base64"),
+              })),
+            }
+          : {}),
       }),
       cache: "no-store",
     });

@@ -1,9 +1,10 @@
 import "server-only";
 import { sql } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { getBranding } from "@/lib/branding";
-import { sendEmail } from "@/lib/email";
-import { renderInvoiceHtml, renderInvoiceText, type InvoiceDocument } from "@/lib/invoice";
+import { getBranding, emailBrand, renderFooter } from "@/lib/branding";
+import { sendEmail, emailShell } from "@/lib/email";
+import { renderInvoiceText, type InvoiceDocument } from "@/lib/invoice";
+import { renderInvoicePdf } from "@/server/receipt-pdf";
 import { formatCurrency } from "@/lib/paystack";
 import { priceFor, type BillingInterval } from "@/lib/plans";
 import { getTemplates, fillTemplate } from "@/lib/email-templates";
@@ -227,18 +228,53 @@ export async function sendReceiptEmail(reference: string): Promise<
     return { sent: false, reason: "Payment has no billable account." };
   }
 
-  const templates = await getTemplates();
-  const { subject } = fillTemplate(templates.receipt, {
+  const [templates, brand] = await Promise.all([getTemplates(), getBranding()]);
+  const amount = formatCurrency(doc.total, doc.currency);
+  const firstName = doc.billTo.name ? ` ${doc.billTo.name.split(" ")[0]}` : "";
+  const t = fillTemplate(templates.receipt, {
+    firstName,
+    name: doc.billTo.name ?? "",
     company: doc.company.name,
     invoiceNumber: doc.invoiceNumber,
-    amount: formatCurrency(doc.total, doc.currency),
+    amount,
+  });
+
+  // Attach the receipt as a PDF. Best-effort: a PDF failure must not stop the
+  // confirmation email going out.
+  let attachments: { filename: string; content: Uint8Array }[] | undefined;
+  try {
+    const pdf = await renderInvoicePdf(doc);
+    attachments = [{ filename: `receipt-${doc.invoiceNumber}.pdf`, content: pdf }];
+  } catch (err) {
+    console.error("Receipt PDF generation failed:", err);
+  }
+
+  const paidOn = new Date(doc.paidAt ?? doc.issuedAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   });
 
   const result = await sendEmail({
     to: doc.billTo.email,
-    subject,
-    html: renderInvoiceHtml(doc),
-    text: `${renderInvoiceText(doc)}\n\nView online: ${appUrl()}/dashboard/billing/${doc.invoiceNumber}`,
+    subject: t.subject,
+    html: emailShell({
+      heading: t.heading,
+      intro: t.intro,
+      rows: [
+        { label: "Description", value: doc.lines[0]?.description ?? "Subscription" },
+        { label: "Amount paid", value: `${amount} ${doc.currency}` },
+        { label: "Date", value: paidOn },
+        { label: "Receipt", value: doc.invoiceNumber },
+      ],
+      bodyNote: t.note,
+      ctaLabel: "View billing",
+      ctaHref: `${appUrl()}/dashboard/billing`,
+      brand: emailBrand(brand),
+      footer: renderFooter(brand),
+    }),
+    text: `${t.heading}\n\n${t.intro}\n\n${renderInvoiceText(doc)}\n\nView online: ${appUrl()}/dashboard/billing/${doc.invoiceNumber}`,
+    attachments,
   });
 
   if (!result.ok) {

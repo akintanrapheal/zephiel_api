@@ -44,7 +44,7 @@ export const TEMPLATE_PLACEHOLDERS: Record<TemplateKind, string[]> = {
   sandbox: ["{firstName}", "{name}", "{api}", "{plan}", "{days}", "{date}", "{company}"],
   paused: ["{firstName}", "{name}", "{api}", "{plan}", "{amount}", "{company}"],
   cancelled: ["{firstName}", "{name}", "{api}", "{plan}", "{date}", "{company}"],
-  receipt: ["{company}", "{invoiceNumber}", "{amount}"],
+  receipt: ["{firstName}", "{company}", "{invoiceNumber}", "{amount}"],
   invoice: ["{company}", "{invoiceNumber}", "{amount}"],
   test: ["{company}"],
 };
@@ -82,9 +82,10 @@ export const DEFAULT_TEMPLATES: Record<TemplateKind, Template> = {
   },
   receipt: {
     subject: "{company} receipt {invoiceNumber} — {amount}",
-    heading: "",
-    intro: "",
-    note: "",
+    heading: "Your payment is confirmed",
+    intro:
+      "Thanks{firstName} — we've received your payment of {amount}. Your subscription is active, and your receipt is attached to this email as a PDF.",
+    note: "You can view your full billing history any time from your dashboard.",
   },
   invoice: {
     subject: "{company} invoice {invoiceNumber} — {amount} due",
