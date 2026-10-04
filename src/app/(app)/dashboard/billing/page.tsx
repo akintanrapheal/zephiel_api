@@ -22,16 +22,18 @@ export default async function BillingPage() {
         invoice_number: string;
         amount: string;
         currency: string;
+        status: string;
         paid_at: Date | null;
+        created_at: Date;
         api_name: string | null;
       }[]
     >`
-      SELECT p.invoice_number, p.amount::text, p.currency, p.paid_at, a.name AS api_name
+      SELECT p.invoice_number, p.amount::text, p.currency, p.status, p.paid_at, p.created_at, a.name AS api_name
       FROM payments p
       LEFT JOIN subscriptions s ON s.id = p.subscription_id
       LEFT JOIN apis a ON a.id = s.api_id
-      WHERE p.user_id = ${user.id} AND p.status = 'success' AND p.invoice_number IS NOT NULL
-      ORDER BY p.paid_at DESC NULLS LAST
+      WHERE p.user_id = ${user.id} AND p.invoice_number IS NOT NULL
+      ORDER BY COALESCE(p.paid_at, p.created_at) DESC
       LIMIT 50
     `,
   ]);
@@ -158,45 +160,103 @@ export default async function BillingPage() {
         ))
       )}
 
-      <section className="rounded-2xl border border-line bg-surface p-6">
-        <h2 className="text-sm font-semibold tracking-tight text-ink">Invoices</h2>
-        <p className="mt-1 text-sm text-muted">
-          A receipt is emailed automatically after every successful payment. Open one here to view or
-          print it.
-        </p>
+      {/* Invoice history — paid receipts + any unpaid invoices, with a dunning banner. */}
+      {(() => {
+        const unpaid = invoices.filter((i) => i.status !== "success");
+        const fmtDate = (d: Date) =>
+          new Date(d).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+        return (
+          <section className="rounded-2xl border border-line bg-surface p-6">
+            <h2 className="text-sm font-semibold tracking-tight text-ink">Invoice history</h2>
+            <p className="mt-1 text-sm text-muted">View or download your past invoices.</p>
 
-        {invoices.length === 0 ? (
-          <p className="mt-5 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
-            No payments yet.
-          </p>
-        ) : (
-          <ul className="mt-5 divide-y divide-line">
-            {invoices.map((inv) => (
-              <li key={inv.invoice_number} className="flex flex-wrap items-center gap-3 py-3">
-                <Link
-                  href={`/dashboard/billing/${inv.invoice_number}`}
-                  className="font-mono text-xs font-medium text-brand-600 hover:underline"
-                >
-                  {inv.invoice_number}
-                </Link>
-                <span className="text-sm text-muted">{inv.api_name ?? "Subscription"}</span>
-                <span className="ml-auto text-xs text-muted">
-                  {inv.paid_at
-                    ? new Date(inv.paid_at).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "—"}
-                </span>
-                <span className="w-24 text-right text-sm font-semibold tabular-nums text-ink">
-                  {formatCurrency(Math.round(Number(inv.amount) * 100), inv.currency)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+            {unpaid.length > 0 && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
+                <p className="flex items-center gap-2 text-sm font-semibold text-red-600">
+                  <span aria-hidden>⊗</span> Unpaid invoices
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  You have {unpaid.length} unpaid invoice{unpaid.length === 1 ? "" : "s"}. Please pay
+                  invoices to avoid service disruption.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  {unpaid.map((inv) => (
+                    <Link
+                      key={inv.invoice_number}
+                      href={`/dashboard/billing/${inv.invoice_number}`}
+                      className="font-medium text-brand-600 hover:underline"
+                    >
+                      {fmtDate(inv.paid_at ?? inv.created_at)} · Pay invoice ↗
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {invoices.length === 0 ? (
+              <p className="mt-5 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
+                No invoices yet.
+              </p>
+            ) : (
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="border-b border-line text-left text-xs uppercase tracking-wider text-muted">
+                      <th className="py-2 pr-4 font-medium">Date</th>
+                      <th className="py-2 pr-4 font-medium">Status</th>
+                      <th className="py-2 pr-4 text-right font-medium">Total</th>
+                      <th className="py-2 pr-4 text-right font-medium">Applied credits</th>
+                      <th className="py-2 pr-4 text-right font-medium">Billed total</th>
+                      <th className="py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {invoices.map((inv) => {
+                      const paid = inv.status === "success";
+                      const total = formatCurrency(Math.round(Number(inv.amount) * 100), inv.currency);
+                      const credits = formatCurrency(0, inv.currency);
+                      return (
+                        <tr key={inv.invoice_number}>
+                          <td className="py-3 pr-4">
+                            <Link
+                              href={`/dashboard/billing/${inv.invoice_number}`}
+                              className="font-medium text-ink hover:text-brand-600 hover:underline"
+                            >
+                              {fmtDate(inv.paid_at ?? inv.created_at)}
+                            </Link>
+                          </td>
+                          <td className="py-3 pr-4">
+                            {paid ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
+                                ✓ Paid
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-600">
+                                ⊘ Unpaid
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4 text-right tabular-nums text-muted">{total}</td>
+                          <td className="py-3 pr-4 text-right tabular-nums text-muted">{credits}</td>
+                          <td className="py-3 pr-4 text-right font-semibold tabular-nums text-ink">{total}</td>
+                          <td className="py-3 text-right">
+                            <Link
+                              href={`/dashboard/billing/${inv.invoice_number}`}
+                              className="text-xs font-medium text-brand-600 hover:underline"
+                            >
+                              {paid ? "View" : "Pay invoice ↗"}
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        );
+      })()}
     </div>
   );
 }

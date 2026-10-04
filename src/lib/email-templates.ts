@@ -89,9 +89,10 @@ export const DEFAULT_TEMPLATES: Record<TemplateKind, Template> = {
   },
   invoice: {
     subject: "{company} invoice {invoiceNumber} — {amount} due",
-    heading: "",
-    intro: "",
-    note: "",
+    heading: "Invoice {invoiceNumber} — {amount} due",
+    intro:
+      "Your free sandbox plan has ended, so {company} invoice {invoiceNumber} for {amount} is now due. Please upgrade to a paid plan and settle this invoice to avoid service disruption — while an invoice is unpaid, calls from your integration start returning 403 errors and any sync against it will fail until it is paid.",
+    note: "Pay invoices to avoid service disruption. You can view or pay your invoices any time from your billing dashboard.",
   },
   test: {
     subject: "{company} — test email",
