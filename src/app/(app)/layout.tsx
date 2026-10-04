@@ -29,17 +29,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   `;
   const avatarUpdatedAt = profile?.avatar_updated_at ?? null;
 
-  // Account-action banner: an unpaid invoice (pay to avoid disruption) takes priority, otherwise a
-  // free plan that's over its call allowance ("outgrown the Free plan — upgrade").
-  const [flags] = await sql<{ unpaid: number; outgrown: number }[]>`
+  // Account-action banner: an unpaid invoice (pay to avoid disruption) takes priority, otherwise a free
+  // SANDBOX plan that's exceeded its limit — either over its call allowance (used >= quota) or running
+  // more connected stores than the free sandbox allows (DEFAULT_FREE_STORE_LIMIT = 1, so units > 1).
+  const [flags] = await sql<{ unpaid: number; sandbox_exceeded: number }[]>`
     SELECT
       (SELECT count(*) FROM payments
          WHERE user_id = ${user.id} AND invoice_number IS NOT NULL AND status <> 'success')::int AS unpaid,
       (SELECT count(*) FROM subscriptions s JOIN plans p ON p.id = s.plan_id
-         WHERE s.user_id = ${user.id} AND s.status = 'active' AND p.price = 0 AND s.used >= s.quota)::int AS outgrown
+         WHERE s.user_id = ${user.id} AND s.status = 'active' AND p.price = 0
+           AND (s.used >= s.quota OR s.units > 1))::int AS sandbox_exceeded
   `;
   const showUnpaid = (flags?.unpaid ?? 0) > 0;
-  const showUpgrade = !showUnpaid && (flags?.outgrown ?? 0) > 0;
+  const showUpgrade = !showUnpaid && (flags?.sandbox_exceeded ?? 0) > 0;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -106,7 +108,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </svg>
               {showUnpaid
                 ? "Action required: You have an unpaid invoice — pay now to avoid service disruption"
-                : "Action required: You've outgrown the Free plan — it's time to upgrade"}
+                : "Action required: You've exceeded your free sandbox limit — it's time to upgrade"}
             </p>
             <Link
               href="/dashboard/billing"
