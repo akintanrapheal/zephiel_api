@@ -29,6 +29,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   `;
   const avatarUpdatedAt = profile?.avatar_updated_at ?? null;
 
+  // Account-action banner: an unpaid invoice (pay to avoid disruption) takes priority, otherwise a
+  // free plan that's over its call allowance ("outgrown the Free plan — upgrade").
+  const [flags] = await sql<{ unpaid: number; outgrown: number }[]>`
+    SELECT
+      (SELECT count(*) FROM payments
+         WHERE user_id = ${user.id} AND invoice_number IS NOT NULL AND status <> 'success')::int AS unpaid,
+      (SELECT count(*) FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+         WHERE s.user_id = ${user.id} AND s.status = 'active' AND p.price = 0 AND s.used >= s.quota)::int AS outgrown
+  `;
+  const showUnpaid = (flags?.unpaid ?? 0) > 0;
+  const showUpgrade = !showUnpaid && (flags?.outgrown ?? 0) > 0;
+
   return (
     <div className="min-h-screen bg-bg">
       <a href="#app-main" className="skip-link">
@@ -84,6 +96,27 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
+
+      {(showUnpaid || showUpgrade) && (
+        <div className="bg-orange-500 text-white">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 text-sm sm:px-6">
+            <p className="flex items-center gap-2 font-semibold">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className="h-4 w-4 shrink-0">
+                <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {showUnpaid
+                ? "Action required: You have an unpaid invoice — pay now to avoid service disruption"
+                : "Action required: You've outgrown the Free plan — it's time to upgrade"}
+            </p>
+            <Link
+              href="/dashboard/billing"
+              className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-90"
+            >
+              {showUnpaid ? "Pay invoice" : "See upgrade options"}
+            </Link>
+          </div>
+        </div>
+      )}
 
       <main id="app-main" tabIndex={-1} className="mx-auto max-w-6xl px-4 pb-20 pt-8 sm:px-6">
         {children}
