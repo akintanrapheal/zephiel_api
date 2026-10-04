@@ -77,7 +77,7 @@ async function companyDetails() {
     name: settings.company_name || settings.platform_name || "Zephiel API",
     address: settings.company_address || "",
     taxId: settings.company_tax_id || null,
-    supportEmail: settings.support_email || "support@zephiel.com",
+    supportEmail: settings.support_email || "info@zephiel.com",
   };
 }
 
