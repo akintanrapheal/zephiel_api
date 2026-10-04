@@ -30,7 +30,7 @@ export function defaultBranding(): Branding {
     footer: "You are receiving this because you have an account on {company}.",
     companyName: "Zephiel API",
     companyAddress: "",
-    supportEmail: "support@zephiel.com",
+    supportEmail: "info@zephiel.com",
     privacyUrl: "",
     socials: [],
   };
