@@ -94,7 +94,7 @@ export default function BrandingForm({
             <option value="NGN">Naira (₦)</option>
           </select>
           <span className="mt-1 block text-[11px] text-muted">
-            Documents are shown in this currency. Customers are still charged in your Paystack
+            Documents are shown in this currency. Customers are still charged in your Squad
             currency at the live rate; a note reconciles the two.
           </span>
         </label>

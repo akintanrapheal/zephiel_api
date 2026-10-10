@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { activateFromReference } from "@/server/billing";
 import { buildInvoiceDocument } from "@/server/invoices";
-import { formatCurrency } from "@/lib/paystack";
+import { formatCurrency } from "@/lib/squad";
 
 export const metadata: Metadata = { title: "Payment" };
 export const dynamic = "force-dynamic";
@@ -14,10 +14,12 @@ const titleCase = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 export default async function BillingCallbackPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reference?: string; trxref?: string }>;
+  searchParams: Promise<{ reference?: string; transaction_ref?: string; trxref?: string }>;
 }) {
   const params = await searchParams;
-  const reference = params.reference ?? params.trxref;
+  // Squad appends the transaction reference on redirect (transaction_ref); keep the
+  // older names as fallbacks so an in-flight payment link still resolves.
+  const reference = params.transaction_ref ?? params.reference ?? params.trxref;
 
   const result = reference
     ? await activateFromReference(reference)

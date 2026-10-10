@@ -1,4 +1,4 @@
-import { getPaystackConfig } from "@/lib/paystack";
+import { getSquadConfig } from "@/lib/squad";
 import { getSettings } from "@/lib/settings";
 import { appUrl } from "@/lib/app-url";
 import { Card } from "@/components/admin/PageHeader";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Platform · Settings" };
 
 export default async function PlatformSettingsPage() {
-  const [config, settings] = await Promise.all([getPaystackConfig(), getSettings()]);
+  const [config, settings] = await Promise.all([getSquadConfig(), getSettings()]);
 
   return (
     <div className="space-y-4">

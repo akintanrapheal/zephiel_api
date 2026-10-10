@@ -195,7 +195,7 @@ export function BillingHistoryForm({ subscriptionId }: { subscriptionId: string 
       </form>
       <p className="text-xs leading-6 text-muted">
         Writes one paid invoice per past month at the current plan price. References are prefixed{" "}
-        <code className="font-mono">demo_</code> so they can never be mistaken for a real Paystack
+        <code className="font-mono">demo_</code> so they can never be mistaken for a real Squad
         transaction.
       </p>
 

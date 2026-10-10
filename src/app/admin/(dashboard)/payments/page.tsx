@@ -21,7 +21,7 @@ export default async function AdminPaymentsPage() {
     <div>
       <PageHeader
         title="Payments"
-        description={`${payments.length} transaction${payments.length === 1 ? "" : "s"} via Paystack`}
+        description={`${payments.length} transaction${payments.length === 1 ? "" : "s"} via Squad`}
         action={
           <span className="rounded-xl border border-line px-4 py-2.5 text-sm text-muted">
             Settled{" "}
@@ -39,7 +39,7 @@ export default async function AdminPaymentsPage() {
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-line">
           <table className="w-full min-w-[760px] border-collapse text-sm">
-              <caption className="sr-only">Paystack transactions with amount, channel, and status</caption>
+              <caption className="sr-only">Squad transactions with amount, channel, and status</caption>
             <thead>
               <tr className="bg-elevated text-left">
                 <th scope="col" className="px-5 py-3 font-semibold text-ink">Reference</th>

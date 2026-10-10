@@ -1,8 +1,8 @@
-import { getPaystackConfig } from "@/lib/paystack";
+import { getSquadConfig } from "@/lib/squad";
 import { getSecretStatus, getSettings, usingDerivedKey } from "@/lib/settings";
 import { appUrl } from "@/lib/app-url";
 import { Card } from "@/components/admin/PageHeader";
-import PaystackSettingsForm from "@/components/admin/PaystackSettingsForm";
+import SquadSettingsForm from "@/components/admin/SquadSettingsForm";
 import CompanyForm from "@/components/admin/CompanyForm";
 import CopyField from "@/components/admin/CopyField";
 
@@ -11,14 +11,14 @@ export const metadata = { title: "Payments · Settings" };
 
 export default async function PaymentsSettingsPage() {
   const [config, secret, settings] = await Promise.all([
-    getPaystackConfig(),
-    getSecretStatus("paystack_secret_key"),
+    getSquadConfig(),
+    getSecretStatus("squad_secret_key"),
     getSettings(),
   ]);
 
   return (
     <div className="space-y-4">
-      <Card title="Paystack" padded>
+      <Card title="Squad" padded>
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <span
             className={
@@ -31,9 +31,9 @@ export default async function PaymentsSettingsPage() {
             {config.secretKey ? "Connected" : "Not configured"}
           </span>
 
-          {/* Which Paystack environment charges run against. Without this the
+          {/* Which Squad environment charges run against. Without this the
               only way to find out was to reach the checkout page and read the
-              banner Paystack puts on it. */}
+              banner Squad puts on it. */}
           {config.mode && (
             <span
               className={
@@ -66,17 +66,16 @@ export default async function PaymentsSettingsPage() {
           <p className="mb-5 rounded-xl border border-rose-500/40 bg-rose-500/5 px-4 py-3 text-sm text-ink">
             <span className="font-semibold">Payments are stopped.</span> A key is stored here but can no
             longer be decrypted, because the encryption key changed since it was saved. It is not
-            silently replaced by <code className="font-mono text-xs">PAYSTACK_SECRET_KEY</code> — doing
-            that would charge against a different Paystack environment than the one you configured.
+            silently replaced by <code className="font-mono text-xs">SQUAD_SECRET_KEY</code> — doing
+            that would charge against a different Squad environment than the one you configured.
             Paste the key again below to fix it.
           </p>
         )}
 
-        {config.mode === "test" && (
+        {config.mode === "sandbox" && (
           <p className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted">
-            Checkout is running against Paystack&apos;s test environment. Cards are simulated and no
-            money moves. Save an <code className="font-mono text-xs">sk_live_…</code> key to take real
-            payments.
+            Checkout is running against Squad&apos;s sandbox. Cards are simulated and no money moves.
+            Save an <code className="font-mono text-xs">sk_…</code> live key to take real payments.
           </p>
         )}
 
@@ -87,7 +86,7 @@ export default async function PaymentsSettingsPage() {
           </p>
         )}
 
-        <PaystackSettingsForm
+        <SquadSettingsForm
           currency={config.currency}
           usdToNgn={config.usdToNgn}
           hasStoredKey={config.source === "settings"}
@@ -97,10 +96,10 @@ export default async function PaymentsSettingsPage() {
           <div>
             <p className="text-xs font-semibold text-ink">Webhook URL</p>
             <p className="mt-1 text-xs text-muted">
-              Paste this into Paystack → Settings → API Keys &amp; Webhooks so subscriptions activate
+              Paste this into Squad → Settings → API Keys &amp; Webhooks so subscriptions activate
               even if the customer closes the tab.
             </p>
-            <CopyField value={`${appUrl()}/api/paystack/webhook`} className="mt-2" />
+            <CopyField value={`${appUrl()}/api/squad/webhook`} className="mt-2" />
           </div>
 
           <p className="text-xs leading-6 text-muted">

@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { savePaystackSettings, testPaystackConnection, removePaystackKey } from "@/server/actions/settings";
+import { saveSquadSettings, testSquadConnection, removeSquadKey } from "@/server/actions/settings";
 import type { FormState } from "@/server/actions/admin";
 import { Field, Message, Select, Submit } from "./Form";
 
-export default function PaystackSettingsForm({
+export default function SquadSettingsForm({
   currency,
   usdToNgn,
   hasStoredKey,
@@ -14,8 +14,8 @@ export default function PaystackSettingsForm({
   usdToNgn: number;
   hasStoredKey: boolean;
 }) {
-  const [state, formAction] = useActionState<FormState, FormData>(savePaystackSettings, null);
-  const [testState, testAction] = useActionState<FormState>(testPaystackConnection, null);
+  const [state, formAction] = useActionState<FormState, FormData>(saveSquadSettings, null);
+  const [testState, testAction] = useActionState<FormState>(testSquadConnection, null);
   const [reveal, setReveal] = useState(false);
 
   return (
@@ -25,7 +25,7 @@ export default function PaystackSettingsForm({
           <label htmlFor="secretKey" className="block text-xs font-semibold text-ink">
             Secret key
             <span className="ml-2 font-normal text-muted">
-              {hasStoredKey ? "leave blank to keep the current key" : "sk_test_… or sk_live_…"}
+              {hasStoredKey ? "leave blank to keep the current key" : "sandbox_sk_… or sk_…"}
             </span>
           </label>
           <div className="mt-1.5 flex gap-2">
@@ -35,7 +35,7 @@ export default function PaystackSettingsForm({
               type={reveal ? "text" : "password"}
               autoComplete="off"
               spellCheck={false}
-              placeholder={hasStoredKey ? "••••••••••••••••••••" : "sk_test_xxxxxxxxxxxxxxxx"}
+              placeholder={hasStoredKey ? "••••••••••••••••••••" : "sandbox_sk_xxxxxxxxxxxxxxxx"}
               aria-describedby="secretKey-help"
               className="min-w-0 flex-1 rounded-xl border border-line bg-bg px-3.5 py-2.5 font-mono text-sm text-ink outline-none transition placeholder:font-sans placeholder:text-muted focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
             />
@@ -49,7 +49,7 @@ export default function PaystackSettingsForm({
             </button>
           </div>
           <p id="secretKey-help" className="mt-1.5 text-xs text-muted">
-            Verified against Paystack before it is saved, then stored encrypted. It is never shown
+            Verified against Squad before it is saved, then stored encrypted. It is never shown
             again in full.
           </p>
         </div>
@@ -75,13 +75,13 @@ export default function PaystackSettingsForm({
 
         <p className="rounded-xl border border-line bg-surface px-4 py-3 text-xs leading-6 text-muted">
           <span className="font-semibold text-ink">Live rate.</span> USD prices are converted to your
-          charge currency using the day&apos;s real USD→NGN rate at the moment of checkout, so Paystack
+          charge currency using the day&apos;s real USD→NGN rate at the moment of checkout, so Squad
           always charges the correct amount. The number above is only the fallback used if the live
           rate is briefly unavailable — it is refreshed automatically each day.
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Submit>Save Paystack settings</Submit>
+          <Submit>Save Squad settings</Submit>
           <Message state={state} />
         </div>
       </form>
@@ -94,7 +94,7 @@ export default function PaystackSettingsForm({
         </form>
 
         {hasStoredKey && (
-          <form action={removePaystackKey}>
+          <form action={removeSquadKey}>
             <button className="rounded-xl border border-line px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-500/5">
               Remove stored key
             </button>

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth";
-import { getPaystackConfig, initializeTransaction, toSubunits, getLiveUsdToNgn } from "@/lib/paystack";
+import { getSquadConfig, initiateTransaction, toSubunits, getLiveUsdToNgn } from "@/lib/squad";
 import { appUrl } from "@/lib/app-url";
 import { sendCancellationEmail } from "@/server/lifecycle-emails";
 import {
@@ -19,7 +19,7 @@ import {
 
 /**
  * Free plans activate immediately. Paid plans create a pending subscription and
- * a payment row, then hand off to Paystack; activation happens on verify or on
+ * a payment row, then hand off to Squad; activation happens on verify or on
  * the webhook, whichever arrives first.
  */
 export async function subscribe(formData: FormData) {
@@ -82,17 +82,17 @@ export async function subscribe(formData: FormData) {
     redirect("/dashboard?subscribed=1");
   }
 
-  // --- paid plan: needs Paystack -------------------------------------------
-  const paystack = await getPaystackConfig();
-  if (!paystack.secretKey) {
+  // --- paid plan: needs Squad -------------------------------------------
+  const squad = await getSquadConfig();
+  if (!squad.secretKey) {
     redirect(`/marketplace/${apiSlug}?error=payments-unconfigured`);
   }
 
   // Convert to the charge currency using the LIVE USD→NGN rate at this moment
   // (falls back to the configured rate if the FX lookup is unavailable), so the
   // naira amount reflects today's dollar and we don't over- or under-charge.
-  const liveRate = await getLiveUsdToNgn(paystack.usdToNgn);
-  const amount = toSubunits(chargeTotal, { currency: paystack.currency, usdToNgn: liveRate });
+  const liveRate = await getLiveUsdToNgn(squad.usdToNgn);
+  const amount = toSubunits(chargeTotal, { currency: squad.currency, usdToNgn: liveRate });
 
   // An existing subscription is left exactly as it is until the money clears.
   // Flipping it to 'pending' here revoked the customer's access the moment
@@ -117,7 +117,7 @@ export async function subscribe(formData: FormData) {
   }
 
   // Reuse a checkout the customer already started for this exact change.
-  // Paystack rejects a second initialize on the same reference, so the link is
+  // Squad rejects a second initialize on the same reference, so the link is
   // stored; without this a double-click created two transactions and took two
   // payments for one upgrade.
   const [inFlight] = await sql<{ reference: string; authorization_url: string | null }[]>`
@@ -141,23 +141,23 @@ export async function subscribe(formData: FormData) {
     INSERT INTO payments (user_id, subscription_id, plan_id, reference, amount, currency,
                           status, units, billing_interval)
     VALUES (${user.id}, ${subscriptionId}, ${plan.id}, ${reference}, ${amount / 100},
-            ${paystack.currency}, 'pending', ${billableUnits}, ${interval})
+            ${squad.currency}, 'pending', ${billableUnits}, ${interval})
   `;
 
   let authorizationUrl: string;
   try {
-    const init = await initializeTransaction({
+    const init = await initiateTransaction({
       email: user.email,
       amountSubunits: amount,
       reference,
       callbackUrl: `${appUrl()}/billing/callback`,
-      currency: paystack.currency,
+      currency: squad.currency,
       metadata: { userId: user.id, subscriptionId, planId: plan.id, apiSlug, interval },
     });
     authorizationUrl = init.authorizationUrl;
   } catch (err) {
     await sql`UPDATE payments SET status = 'failed' WHERE reference = ${reference}`;
-    console.error("Paystack initialize failed:", err);
+    console.error("Squad initialize failed:", err);
     redirect(`/marketplace/${apiSlug}?error=payment-init-failed`);
   }
 

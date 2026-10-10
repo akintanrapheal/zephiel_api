@@ -7,7 +7,7 @@ import SettingsTabs from "@/components/admin/SettingsTabs";
  *
  * The four groups are separate routes rather than anchors on one page: each
  * loads only the data it needs, a link can point at one of them, and the
- * Paystack card no longer re-renders because someone opened the schema panel.
+ * Squad card no longer re-renders because someone opened the schema panel.
  */
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (

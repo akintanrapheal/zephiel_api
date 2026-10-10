@@ -16,7 +16,7 @@ const errors: Record<string, string> = {
   "missing-plan": "Choose a plan before subscribing.",
   "unknown-plan": "That plan is no longer available.",
   "payments-unconfigured":
-    "Paid checkout is unavailable — this deployment has no Paystack key configured. Free plans still work.",
+    "Paid checkout is unavailable — this deployment has no Squad key configured. Free plans still work.",
   "payment-init-failed": "Could not start the payment. Please try again.",
 };
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
-import { formatCurrency } from "@/lib/paystack";
+import { formatCurrency } from "@/lib/squad";
 import { requireAdmin } from "@/lib/auth";
 import PageHeader, { Card } from "@/components/admin/PageHeader";
 import { JoinDateForm, SubscriptionForm, TrafficForm, BillingHistoryForm, StoreAllowanceForm } from "@/components/admin/CustomerForms";

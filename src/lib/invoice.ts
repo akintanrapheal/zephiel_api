@@ -1,5 +1,5 @@
 import "server-only";
-import { formatCurrency } from "./paystack";
+import { formatCurrency } from "./squad";
 
 export type InvoiceLine = {
   description: string;
@@ -30,7 +30,7 @@ export type InvoiceDocument = {
   brand?: { logoUrl?: string; color?: string };
   /**
    * When the document is shown in one currency but the customer was charged in
-   * another (USD invoice, NGN Paystack charge), this line reconciles the two.
+   * another (USD invoice, NGN Squad charge), this line reconciles the two.
    */
   chargedNote?: string | null;
 };

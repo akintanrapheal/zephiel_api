@@ -5,7 +5,7 @@ import { getBranding, emailBrand, renderFooter } from "@/lib/branding";
 import { sendEmail, emailShell } from "@/lib/email";
 import { renderInvoiceText, type InvoiceDocument } from "@/lib/invoice";
 import { renderInvoicePdf } from "@/server/receipt-pdf";
-import { formatCurrency } from "@/lib/paystack";
+import { formatCurrency } from "@/lib/squad";
 import { priceFor, type BillingInterval } from "@/lib/plans";
 import { getTemplates, fillTemplate } from "@/lib/email-templates";
 import { appUrl } from "@/lib/app-url";
@@ -92,7 +92,7 @@ export async function buildInvoiceDocument(reference: string): Promise<InvoiceDo
   if (!p || !p.email) return null;
 
   const paid = p.status === "success";
-  const chargeCurrency = p.currency; // what Paystack actually took (e.g. NGN)
+  const chargeCurrency = p.currency; // what Squad actually took (e.g. NGN)
   const chargedMajor = Number(p.amount); // stored in major units of chargeCurrency
   const qty = p.plan_unit ? (p.units ?? 1) : 1;
   const interval: BillingInterval = p.billing_interval === "annual" ? "annual" : "monthly";
