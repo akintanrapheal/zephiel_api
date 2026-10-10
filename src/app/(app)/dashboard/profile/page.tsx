@@ -26,7 +26,7 @@ export default async function ProfilePage() {
   // Tolerant of the avatar columns being absent: they arrive with a migration,
   // and a page that 500s is a worse way to learn that than a page that says so.
   const rows = await sql<{ name: string; avatar_updated_at: Date | null; created_at: Date }[]>`
-    SELECT name, avatar_updated_at, created_at FROM users WHERE id = ${user.id} LIMIT 1
+    SELECT name, avatar_updated_at, created_at FROM users WHERE id = ${user.memberId} LIMIT 1
   `.catch(() => null);
 
   const migrated = rows !== null;
@@ -36,7 +36,7 @@ export default async function ProfilePage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center gap-4">
         <Avatar
-          userId={user.id}
+          userId={user.memberId}
           name={row?.name}
           email={user.email}
           updatedAt={row?.avatar_updated_at}

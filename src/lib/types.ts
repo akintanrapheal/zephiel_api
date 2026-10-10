@@ -62,7 +62,16 @@ export type Category = {
 export type Role = "admin" | "customer";
 
 export type User = {
+  /**
+   * The ACCOUNT id — the owning user's id. Everything a member shares
+   * (subscriptions, stores, API keys, usage, billing) is scoped to this, so a
+   * member resolves to the owner's account. Equals `memberId` for an owner.
+   */
   id: string;
+  /** The signed-in user's own row id. Use for self-only actions (profile, password, avatar). */
+  memberId: string;
+  /** True when signed in as a member of someone else's account. */
+  isMember: boolean;
   email: string;
   name: string;
   role: Role;
