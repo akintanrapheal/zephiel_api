@@ -87,19 +87,50 @@ export async function getCurrentUser(): Promise<User | null> {
   const id = jar.get(SESSION_COOKIE)?.value;
   if (!id) return null;
 
-  const rows = await sql<
-    { id: string; email: string; name: string; role: Role; created_at: Date }[]
-  >`
-    SELECT u.id, u.email, u.name, u.role, u.created_at
-    FROM sessions s
-    JOIN users u ON u.id = s.user_id
-    WHERE s.id = ${id} AND s.expires_at > now()
-    LIMIT 1
-  `;
+  // account_owner_id links a member to the account they belong to. Tolerate it
+  // being absent (migration not yet run) by falling back to a query without it,
+  // so a deployment that hasn't migrated still signs people in as owners.
+  type Row = {
+    id: string;
+    account_owner_id: string | null;
+    email: string;
+    name: string;
+    role: Role;
+    created_at: Date;
+  };
+  let rows: Row[];
+  try {
+    rows = await sql<Row[]>`
+      SELECT u.id, u.account_owner_id, u.email, u.name, u.role, u.created_at
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id
+      WHERE s.id = ${id} AND s.expires_at > now()
+      LIMIT 1
+    `;
+  } catch {
+    const legacy = await sql<Omit<Row, "account_owner_id">[]>`
+      SELECT u.id, u.email, u.name, u.role, u.created_at
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id
+      WHERE s.id = ${id} AND s.expires_at > now()
+      LIMIT 1
+    `;
+    rows = legacy.map((r) => ({ ...r, account_owner_id: null }));
+  }
 
   const row = rows[0];
   if (!row) return null;
-  return { id: row.id, email: row.email, name: row.name, role: row.role, createdAt: row.created_at };
+  return {
+    // A member shares the owner's account, so the effective account id is the
+    // owner's. Queries scoped by `id` therefore operate on that account.
+    id: row.account_owner_id ?? row.id,
+    memberId: row.id,
+    isMember: row.account_owner_id != null,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    createdAt: row.created_at,
+  };
 }
 
 export async function requireUser(): Promise<User> {
@@ -111,5 +142,12 @@ export async function requireUser(): Promise<User> {
 export async function requireAdmin(): Promise<User> {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") throw new Error("FORBIDDEN");
+  return user;
+}
+
+/** The signed-in user, required to OWN their account (members are refused). */
+export async function requireAccountOwner(): Promise<User> {
+  const user = await requireUser();
+  if (user.isMember) throw new Error("FORBIDDEN");
   return user;
 }

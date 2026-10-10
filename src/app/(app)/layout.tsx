@@ -23,9 +23,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getCurrentUser();
   if (!user) redirect("/signin?next=/dashboard");
 
-  // One lookup by primary key; the header renders on every dashboard page.
+  // One lookup by primary key; the header renders on every dashboard page. Keyed to the signed-in
+  // member's own row (not the account) so each person sees their own avatar.
   const [profile] = await sql<{ avatar_updated_at: Date | null }[]>`
-    SELECT avatar_updated_at FROM users WHERE id = ${user.id} LIMIT 1
+    SELECT avatar_updated_at FROM users WHERE id = ${user.memberId} LIMIT 1
   `;
   const avatarUpdatedAt = profile?.avatar_updated_at ?? null;
 
@@ -62,7 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </span>
           </Link>
 
-          <AppNav />
+          <AppNav showTeam={!user.isMember} />
 
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
@@ -82,7 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             )}
             <Link href="/dashboard/profile" title={`${user.email} — edit profile`}>
               <Avatar
-                userId={user.id}
+                userId={user.memberId}
                 name={user.name}
                 email={user.email}
                 updatedAt={avatarUpdatedAt}

@@ -423,3 +423,15 @@ ALTER TABLE plans ADD COLUMN IF NOT EXISTS store_limit integer NOT NULL DEFAULT 
 -- Lets an operator extend a free trial by a store without moving the customer
 -- onto a paid plan or changing the plan for everyone on it.
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS store_limit integer;
+
+-- --------------------------------------------------------- team members --
+
+-- A user may belong to another user's account as a MEMBER: they sign in with
+-- their own email + password, but share the owner's data (subscriptions,
+-- stores, API keys, usage, billing). account_owner_id is the owner's users.id;
+-- NULL means the user owns their own account. getCurrentUser() resolves the
+-- effective account id from this, so every query already scoped by user id
+-- keeps working — a member simply resolves to the owner's account.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS account_owner_id uuid REFERENCES users(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS users_account_owner_idx ON users(account_owner_id);

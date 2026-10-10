@@ -14,12 +14,16 @@ const links = [
   { href: "/dashboard/profile", label: "Profile" },
 ];
 
-export default function AppNav() {
+// Shown only to an account owner — members can't manage the team.
+const teamLink = { href: "/dashboard/team", label: "Team" };
+
+export default function AppNav({ showTeam = false }: { showTeam?: boolean }) {
   const pathname = usePathname();
+  const items = showTeam ? [...links, teamLink] : links;
 
   return (
     <nav aria-label="Dashboard sections" className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto">
-      {links.map((l) => {
+      {items.map((l) => {
         const active = pathname === l.href;
         return (
           <Link

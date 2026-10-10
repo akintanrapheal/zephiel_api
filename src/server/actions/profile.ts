@@ -17,7 +17,7 @@ export async function changeMyName(_prev: FormState, formData: FormData): Promis
   const parsed = nameSchema.safeParse({ name: String(formData.get("name") ?? "") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
 
-  await sql`UPDATE users SET name = ${parsed.data.name} WHERE id = ${user.id}`;
+  await sql`UPDATE users SET name = ${parsed.data.name} WHERE id = ${user.memberId}`;
   revalidatePath("/dashboard", "layout");
   revalidatePath("/admin", "layout");
   return { ok: "Name updated." };
@@ -47,7 +47,7 @@ export async function changeMyEmail(_prev: FormState, formData: FormData): Promi
   if (next === user.email.toLowerCase()) return { error: "That is already your sign-in address." };
 
   const [row] = await sql<{ password_hash: string }[]>`
-    SELECT password_hash FROM users WHERE id = ${user.id} LIMIT 1
+    SELECT password_hash FROM users WHERE id = ${user.memberId} LIMIT 1
   `;
   if (!row || !(await verifyPassword(parsed.data.current, row.password_hash))) {
     return { error: "That password is incorrect." };
@@ -56,13 +56,13 @@ export async function changeMyEmail(_prev: FormState, formData: FormData): Promi
   // users.email is unique; checking first turns a constraint violation into a
   // message someone can act on.
   const [taken] = await sql<{ id: string }[]>`
-    SELECT id FROM users WHERE lower(email) = ${next} AND id <> ${user.id} LIMIT 1
+    SELECT id FROM users WHERE lower(email) = ${next} AND id <> ${user.memberId} LIMIT 1
   `;
   if (taken) return { error: "Another account already uses that address." };
 
-  await sql`UPDATE users SET email = ${next} WHERE id = ${user.id}`;
-  await sql`DELETE FROM sessions WHERE user_id = ${user.id}`;
-  await createSession(user.id);
+  await sql`UPDATE users SET email = ${next} WHERE id = ${user.memberId}`;
+  await sql`DELETE FROM sessions WHERE user_id = ${user.memberId}`;
+  await createSession(user.memberId);
 
   revalidatePath("/dashboard/profile");
   return { ok: `Sign-in address changed to ${next}. Use it next time you sign in.` };
@@ -87,7 +87,7 @@ export async function changeMyPassword(_prev: FormState, formData: FormData): Pr
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
 
   const [row] = await sql<{ password_hash: string }[]>`
-    SELECT password_hash FROM users WHERE id = ${user.id} LIMIT 1
+    SELECT password_hash FROM users WHERE id = ${user.memberId} LIMIT 1
   `;
   if (!row || !(await verifyPassword(parsed.data.current, row.password_hash))) {
     return { error: "Your current password is incorrect." };
@@ -97,10 +97,10 @@ export async function changeMyPassword(_prev: FormState, formData: FormData): Pr
   }
 
   await sql`
-    UPDATE users SET password_hash = ${await hashPassword(parsed.data.next)} WHERE id = ${user.id}
+    UPDATE users SET password_hash = ${await hashPassword(parsed.data.next)} WHERE id = ${user.memberId}
   `;
-  await sql`DELETE FROM sessions WHERE user_id = ${user.id}`;
-  await createSession(user.id);
+  await sql`DELETE FROM sessions WHERE user_id = ${user.memberId}`;
+  await createSession(user.memberId);
 
   revalidatePath("/dashboard/profile");
   return { ok: "Password changed. Other devices have been signed out." };
@@ -144,7 +144,7 @@ export async function uploadAvatar(_prev: FormState, formData: FormData): Promis
   await sql`
     UPDATE users
     SET avatar = ${webp}, avatar_type = 'image/webp', avatar_updated_at = now()
-    WHERE id = ${user.id}
+    WHERE id = ${user.memberId}
   `;
 
   revalidatePath("/dashboard", "layout");
@@ -156,7 +156,7 @@ export async function removeAvatar(): Promise<void> {
   const user = await requireUser();
   await sql`
     UPDATE users SET avatar = NULL, avatar_type = NULL, avatar_updated_at = NULL
-    WHERE id = ${user.id}
+    WHERE id = ${user.memberId}
   `;
   revalidatePath("/dashboard", "layout");
   revalidatePath("/admin", "layout");
