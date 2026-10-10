@@ -68,7 +68,7 @@ const subprocessors = [
     location: "EU (London)",
   },
   {
-    name: "Paystack",
+    name: "Squad",
     role: "Payment processing",
     data: "Email address, transaction amount and reference",
     location: "Nigeria / South Africa",

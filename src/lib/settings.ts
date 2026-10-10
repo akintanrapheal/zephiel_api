@@ -3,8 +3,8 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
 import { sql } from "./db";
 
 export type SettingKey =
-  | "paystack_secret_key"
-  | "paystack_currency"
+  | "squad_secret_key"
+  | "squad_currency"
   | "usd_to_ngn"
   | "platform_name"
   | "support_email"
@@ -24,12 +24,12 @@ export type SettingKey =
   | "social_instagram"
   | "social_youtube"
   // Currency shown on invoices and receipts (charging still happens in the
-  // Paystack currency at the live rate; this is display only).
+  // Squad currency at the live rate; this is display only).
   | "invoice_currency"
   // JSON blob of per-template copy overrides (see lib/email-templates.ts).
   | "email_templates";
 
-const SECRET_KEYS: SettingKey[] = ["paystack_secret_key", "resend_api_key"];
+const SECRET_KEYS: SettingKey[] = ["squad_secret_key", "resend_api_key"];
 
 /**
  * Key material for encrypting stored secrets.

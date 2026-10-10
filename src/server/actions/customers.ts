@@ -258,7 +258,7 @@ const historySchema = z.object({
  *
  * For demonstration accounts that need a plausible billing history. The
  * references are prefixed `demo_` rather than `zph_`, so these can never be
- * mistaken for — or reconciled against — a real Paystack transaction, while
+ * mistaken for — or reconciled against — a real Squad transaction, while
  * the invoices themselves render exactly like live ones.
  */
 export async function recordPastPayments(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -277,7 +277,7 @@ export async function recordPastPayments(_prev: FormState, formData: FormData): 
     { user_id: string; price: string; units: number; currency: string }[]
   >`
     SELECT s.user_id, p.price::text, s.units,
-           COALESCE((SELECT value FROM settings WHERE key = 'paystack_currency'), 'NGN') AS currency
+           COALESCE((SELECT value FROM settings WHERE key = 'squad_currency'), 'NGN') AS currency
     FROM subscriptions s JOIN plans p ON p.id = s.plan_id
     WHERE s.id = ${subscriptionId} LIMIT 1
   `;
@@ -290,9 +290,9 @@ export async function recordPastPayments(_prev: FormState, formData: FormData): 
 
   // Charged in the settlement currency, the same conversion checkout uses.
   const settings = await sql<{ key: string; value: string }[]>`
-    SELECT key, value FROM settings WHERE key IN ('paystack_currency', 'usd_to_ngn')
+    SELECT key, value FROM settings WHERE key IN ('squad_currency', 'usd_to_ngn')
   `;
-  const currency = settings.find((r) => r.key === "paystack_currency")?.value ?? "NGN";
+  const currency = settings.find((r) => r.key === "squad_currency")?.value ?? "NGN";
   const rate = Number(settings.find((r) => r.key === "usd_to_ngn")?.value ?? 1550);
   const amount = currency === "USD" ? monthly : Math.round(monthly * rate);
 
@@ -469,7 +469,7 @@ export async function grantStoreAllowance(_prev: FormState, formData: FormData):
  * Remove recorded payments for a subscription.
  *
  * Restricted to the demo_ references written by recordPastPayments: a real
- * Paystack payment is the record of money that actually moved, and deleting it
+ * Squad payment is the record of money that actually moved, and deleting it
  * would leave an invoice the customer holds with nothing behind it.
  */
 export async function clearPaymentHistory(formData: FormData): Promise<void> {

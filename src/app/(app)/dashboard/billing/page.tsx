@@ -2,10 +2,10 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { getSubscriptions } from "@/server/account";
-import { getPaystackConfig } from "@/lib/paystack";
+import { getSquadConfig } from "@/lib/squad";
 import PlanChooser from "@/components/app/PlanChooser";
 import { compact } from "@/lib/utils";
-import { formatCurrency } from "@/lib/paystack";
+import { formatCurrency } from "@/lib/squad";
 import { billableStoreUnits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,9 @@ export const metadata = { title: "Billing" };
 export default async function BillingPage() {
   const user = await requireUser();
 
-  const [subs, paystack, invoices] = await Promise.all([
+  const [subs, squad, invoices] = await Promise.all([
     getSubscriptions(user.id),
-    getPaystackConfig(),
+    getSquadConfig(),
     sql<
       {
         invoice_number: string;
@@ -108,7 +108,7 @@ export default async function BillingPage() {
         </div>
       </section>
 
-      {!paystack.secretKey && (
+      {!squad.secretKey && (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted">
           <span className="font-semibold text-ink">Card payments are unavailable</span> on this
           deployment, so paid plans cannot be checked out. Free plans still change instantly.
@@ -155,7 +155,7 @@ export default async function BillingPage() {
                 quota: p.quota,
                 popular: p.popular,
               }))}
-            paymentsEnabled={Boolean(paystack.secretKey)}
+            paymentsEnabled={Boolean(squad.secretKey)}
           />
         ))
       )}

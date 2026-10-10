@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { sweepRenewalReminders } from "@/server/notifications";
 import { isEmailConfigured } from "@/lib/email";
-import { refreshStoredUsdToNgn } from "@/lib/paystack";
+import { refreshStoredUsdToNgn } from "@/lib/squad";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

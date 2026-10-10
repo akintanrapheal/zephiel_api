@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireAdmin, hashPassword, verifyPassword, createSession } from "@/lib/auth";
 import { sql } from "@/lib/db";
 import { clearSetting, setSetting } from "@/lib/settings";
-import { getPaystackConfig, testSecretKey, formatCurrency } from "@/lib/paystack";
+import { getSquadConfig, testSecretKey, formatCurrency } from "@/lib/squad";
 import { getEmailConfig, sendEmail, emailShell } from "@/lib/email";
 import { getBranding, renderFooter, isHexColor, emailBrand } from "@/lib/branding";
 import {
@@ -25,18 +25,18 @@ import { applySchema, getSchemaStatus } from "@/server/schema-status";
 import { seedCatalogue } from "@/server/catalog-seed";
 import type { FormState } from "./admin";
 
-const paystackSchema = z.object({
+const squadSchema = z.object({
   currency: z.enum(["NGN", "GHS", "ZAR", "KES", "USD"]),
   usdToNgn: z.coerce.number().positive().max(100_000),
 });
 
-export async function savePaystackSettings(
+export async function saveSquadSettings(
   _prev: FormState,
   formData: FormData
 ): Promise<FormState> {
   const admin = await requireAdmin();
 
-  const parsed = paystackSchema.safeParse({
+  const parsed = squadSchema.safeParse({
     currency: String(formData.get("currency") ?? "NGN"),
     usdToNgn: formData.get("usdToNgn") || 1550,
   });
@@ -50,35 +50,35 @@ export async function savePaystackSettings(
   // An empty field means "leave the stored key alone", so a save that only
   // changes the currency never wipes the key.
   if (secret) {
-    if (!/^sk_(test|live)_[A-Za-z0-9]{10,}$/.test(secret)) {
-      return { error: "That does not look like a Paystack secret key (sk_test_… or sk_live_…)." };
+    if (!/^(sandbox_sk_|sk_)[A-Za-z0-9_-]{10,}$/.test(secret)) {
+      return { error: "That does not look like a Squad secret key (sandbox_sk_… for test, or sk_… for live)." };
     }
 
     const probe = await testSecretKey(secret);
     if (!probe.ok) return { error: `Key rejected: ${probe.message}` };
 
-    await setSetting("paystack_secret_key", secret, admin.id);
+    await setSetting("squad_secret_key", secret, admin.id);
   }
 
-  await setSetting("paystack_currency", parsed.data.currency, admin.id);
+  await setSetting("squad_currency", parsed.data.currency, admin.id);
   await setSetting("usd_to_ngn", String(parsed.data.usdToNgn), admin.id);
 
   revalidatePath("/admin/settings", "layout");
   revalidatePath("/admin");
-  return { ok: secret ? "Key verified with Paystack and saved." : "Settings saved." };
+  return { ok: secret ? "Key verified with Squad and saved." : "Settings saved." };
 }
 
-export async function removePaystackKey() {
+export async function removeSquadKey() {
   await requireAdmin();
-  await clearSetting("paystack_secret_key");
+  await clearSetting("squad_secret_key");
   revalidatePath("/admin/settings", "layout");
   revalidatePath("/admin");
 }
 
-export async function testPaystackConnection(_prev: FormState): Promise<FormState> {
+export async function testSquadConnection(_prev: FormState): Promise<FormState> {
   await requireAdmin();
 
-  const { secretKey, source } = await getPaystackConfig();
+  const { secretKey, source } = await getSquadConfig();
   if (!secretKey) return { error: "No key configured yet." };
 
   const probe = await testSecretKey(secretKey);

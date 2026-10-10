@@ -2,7 +2,7 @@ import "server-only";
 import type { JSONValue } from "postgres";
 import { sql } from "@/lib/db";
 import { isBillingInterval, periodEndFor } from "@/lib/plans";
-import { verifyTransaction } from "@/lib/paystack";
+import { verifyTransaction } from "@/lib/squad";
 import { ensureInvoiceNumber, sendReceiptEmail } from "@/server/invoices";
 
 export type ActivationResult =
@@ -10,7 +10,7 @@ export type ActivationResult =
   | { ok: false; reason: string };
 
 /**
- * Confirms a payment with Paystack and activates its subscription.
+ * Confirms a payment with Squad and activates its subscription.
  *
  * Called from both the browser callback and the webhook, which can arrive in
  * either order or both — so it is idempotent: a payment already marked success
@@ -38,8 +38,8 @@ export async function activateFromReference(reference: string): Promise<Activati
   try {
     verified = await verifyTransaction(reference);
   } catch (err) {
-    console.error("Paystack verify failed:", err);
-    return { ok: false, reason: "Could not reach Paystack to verify this payment." };
+    console.error("Squad verify failed:", err);
+    return { ok: false, reason: "Could not reach Squad to verify this payment." };
   }
 
   if (verified.status !== "success") {
@@ -51,14 +51,14 @@ export async function activateFromReference(reference: string): Promise<Activati
     return { ok: false, reason: `Payment was not completed (${verified.status}).` };
   }
 
-  // What Paystack collected must match what we asked for. The amount is set
+  // What Squad collected must match what we asked for. The amount is set
   // server-side at initialize, so a mismatch means something is wrong rather
   // than merely unexpected, and activating on it would be granting a plan that
   // was not paid for.
   const expected = Number(payment.amount);
   const collected = verified.amount / 100;
   if (Math.abs(expected - collected) > 0.009) {
-    console.error(`Payment ${reference}: expected ${expected}, Paystack reports ${collected}.`);
+    console.error(`Payment ${reference}: expected ${expected}, Squad reports ${collected}.`);
     return { ok: false, reason: "The amount paid does not match this order." };
   }
 

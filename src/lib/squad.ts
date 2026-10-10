@@ -3,38 +3,48 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSettings, unreadableSecrets, setSetting } from "./settings";
 
 /**
- * Paystack's API root.
+ * Squad (by GTCO) API roots. The host follows the KEY, not an env var: a
+ * sandbox key (sandbox_sk_…) charges nothing and must hit the sandbox host; a
+ * live key (sk_…) hits production. Deriving the host from the key means pasting
+ * a live key flips to live with no redeploy, and a test key can never
+ * accidentally be pointed at production.
  *
  * Overridable outside production only, so the payment path can be exercised
- * end to end against a stub. Honouring it in production would turn an
- * environment variable into a way to redirect real charges.
+ * end to end against a stub.
  */
-const BASE =
-  process.env.NODE_ENV !== "production" && process.env.PAYSTACK_BASE_URL
-    ? process.env.PAYSTACK_BASE_URL.replace(/\/$/, "")
-    : "https://api.paystack.co";
+const SANDBOX_BASE = "https://sandbox-api-d.squadco.com";
+const LIVE_BASE = "https://api-d.squadco.com";
 
-export type PaystackConfig = {
+function baseFor(key: string): string {
+  if (process.env.NODE_ENV !== "production" && process.env.SQUAD_BASE_URL) {
+    return process.env.SQUAD_BASE_URL.replace(/\/$/, "");
+  }
+  // Default to sandbox when the mode can't be read — never charge against live by accident.
+  return modeOf(key) === "live" ? LIVE_BASE : SANDBOX_BASE;
+}
+
+export type SquadConfig = {
   secretKey: string | null;
   currency: string;
   usdToNgn: number;
   /** Where the value came from, so the console can show it. */
   source: "settings" | "env" | "none";
-  /** Which Paystack environment the active key charges against. */
-  mode: "test" | "live" | null;
+  /** Which Squad environment the active key charges against. */
+  mode: "sandbox" | "live" | null;
   /**
    * A key was saved in the console but cannot be decrypted. The env key is not
    * used in its place: the operator's recorded intent is the stored one, and
    * quietly charging against a different key is how a live deployment ends up
-   * taking test-mode payments that collect nothing.
+   * taking sandbox payments that collect nothing.
    */
   storedUnreadable: boolean;
 };
 
-function modeOf(key: string | null): "test" | "live" | null {
+function modeOf(key: string | null): "sandbox" | "live" | null {
   if (!key) return null;
-  if (key.startsWith("sk_live_")) return "live";
-  if (key.startsWith("sk_test_")) return "test";
+  // Sandbox keys are prefixed sandbox_sk_… ; live secret keys are sk_… .
+  if (key.startsWith("sandbox_sk_")) return "sandbox";
+  if (key.startsWith("sk_")) return "live";
   return null;
 }
 
@@ -43,20 +53,20 @@ function modeOf(key: string | null): "test" | "live" | null {
  * That lets an operator rotate keys without a redeploy while keeping env vars
  * working for infrastructure-managed deployments.
  */
-export async function getPaystackConfig(): Promise<PaystackConfig> {
+export async function getSquadConfig(): Promise<SquadConfig> {
   const settings = await getSettings().catch(() => ({}) as Record<string, string>);
 
-  const fromSettings = settings.paystack_secret_key;
-  const fromEnv = process.env.PAYSTACK_SECRET_KEY;
+  const fromSettings = settings.squad_secret_key;
+  const fromEnv = process.env.SQUAD_SECRET_KEY;
 
-  const currency = (settings.paystack_currency ?? process.env.PAYSTACK_CURRENCY ?? "NGN").toUpperCase();
+  const currency = (settings.squad_currency ?? process.env.SQUAD_CURRENCY ?? "NGN").toUpperCase();
   const rate = Number(settings.usd_to_ngn ?? process.env.USD_TO_NGN ?? 1550);
 
   // Only ask when the console key is missing — that is the case where an
   // unreadable stored value and no stored value look identical from here.
   const unreadable = fromSettings
     ? false
-    : (await unreadableSecrets().catch(() => [] as string[])).includes("paystack_secret_key");
+    : (await unreadableSecrets().catch(() => [] as string[])).includes("squad_secret_key");
 
   const secretKey = fromSettings ?? (unreadable ? null : (fromEnv ?? null));
 
@@ -71,7 +81,7 @@ export async function getPaystackConfig(): Promise<PaystackConfig> {
 }
 
 export async function isConfigured() {
-  return Boolean((await getPaystackConfig()).secretKey);
+  return Boolean((await getSquadConfig()).secretKey);
 }
 
 // Live USD→NGN, looked up at charge time so the naira amount tracks the real
@@ -126,19 +136,20 @@ export async function refreshStoredUsdToNgn(): Promise<number | null> {
   return null;
 }
 
-async function requireSecretKey() {
-  const { secretKey } = await getPaystackConfig();
+async function requireCreds() {
+  const { secretKey } = await getSquadConfig();
   if (!secretKey) {
-    throw new Error("No Paystack secret key configured (admin console → Settings, or PAYSTACK_SECRET_KEY).");
+    throw new Error("No Squad secret key configured (admin console → Settings, or SQUAD_SECRET_KEY).");
   }
-  return secretKey;
+  return { secretKey, base: baseFor(secretKey) };
 }
 
 /**
- * USD price -> the integer subunit amount Paystack expects (kobo for NGN,
- * cents for USD). Paystack rejects non-integer amounts.
+ * USD price -> the integer subunit amount Squad expects (kobo for NGN, cents
+ * for USD). Squad's /transaction/initiate takes the amount in the lowest
+ * currency unit (10000 = ₦100), same as Paystack did.
  */
-export function toSubunits(usd: number, config: Pick<PaystackConfig, "currency" | "usdToNgn">) {
+export function toSubunits(usd: number, config: Pick<SquadConfig, "currency" | "usdToNgn">) {
   const inCurrency = config.currency === "USD" ? usd : usd * config.usdToNgn;
   return Math.round(inCurrency * 100);
 }
@@ -161,7 +172,7 @@ export function formatCurrency(subunits: number, currency = "NGN") {
 
 type InitializeResult = { authorizationUrl: string; reference: string };
 
-export async function initializeTransaction(params: {
+export async function initiateTransaction(params: {
   email: string;
   amountSubunits: number;
   reference: string;
@@ -169,17 +180,19 @@ export async function initializeTransaction(params: {
   currency: string;
   metadata?: Record<string, unknown>;
 }): Promise<InitializeResult> {
-  const res = await fetch(`${BASE}/transaction/initialize`, {
+  const { secretKey, base } = await requireCreds();
+  const res = await fetch(`${base}/transaction/initiate`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${await requireSecretKey()}`,
+      Authorization: `Bearer ${secretKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      email: params.email,
       amount: params.amountSubunits,
-      reference: params.reference,
+      email: params.email,
       currency: params.currency,
+      initiate_type: "inline",
+      transaction_ref: params.reference,
       callback_url: params.callbackUrl,
       metadata: params.metadata ?? {},
     }),
@@ -187,13 +200,15 @@ export async function initializeTransaction(params: {
   });
 
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body?.status) {
-    throw new Error(body?.message || `Paystack initialize failed (${res.status})`);
+  // Squad replies { status: 200, success: true, data: { checkout_url, transaction_ref } }.
+  const good = res.ok && (body?.success === true || body?.status === 200);
+  if (!good || !body?.data?.checkout_url) {
+    throw new Error(body?.message || `Squad initiate failed (${res.status})`);
   }
 
   return {
-    authorizationUrl: body.data.authorization_url as string,
-    reference: body.data.reference as string,
+    authorizationUrl: body.data.checkout_url as string,
+    reference: (body.data.transaction_ref as string) ?? params.reference,
   };
 }
 
@@ -208,55 +223,59 @@ export type VerifiedTransaction = {
 };
 
 export async function verifyTransaction(reference: string): Promise<VerifiedTransaction> {
-  const res = await fetch(`${BASE}/transaction/verify/${encodeURIComponent(reference)}`, {
-    headers: { Authorization: `Bearer ${await requireSecretKey()}` },
-    cache: "no-store",
-  });
-
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body?.status) {
-    throw new Error(body?.message || `Paystack verify failed (${res.status})`);
-  }
-
-  const d = body.data;
-  return {
-    status: d.status,
-    amount: d.amount,
-    currency: d.currency,
-    channel: d.channel ?? null,
-    paidAt: d.paid_at ? new Date(d.paid_at) : null,
-    metadata: d.metadata ?? {},
-    raw: d,
-  };
-}
-
-/** Calls Paystack with the given key to confirm it is live and readable. */
-export async function testSecretKey(secretKey: string) {
-  const res = await fetch(`${BASE}/transaction/totals`, {
+  const { secretKey, base } = await requireCreds();
+  const res = await fetch(`${base}/transaction/verify/${encodeURIComponent(reference)}`, {
     headers: { Authorization: `Bearer ${secretKey}` },
     cache: "no-store",
   });
 
-  if (res.status === 401) return { ok: false as const, message: "Paystack rejected that key." };
-
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body?.status) {
-    return { ok: false as const, message: body?.message || `Paystack returned ${res.status}.` };
+  if (!res.ok || (body?.success !== true && body?.status !== 200)) {
+    throw new Error(body?.message || `Squad verify failed (${res.status})`);
   }
 
-  return { ok: true as const, message: "Key accepted by Paystack." };
+  const d = body.data ?? {};
+  const statusRaw = String(d.transaction_status ?? d.status ?? "").toLowerCase();
+  return {
+    status: statusRaw === "success" ? "success" : statusRaw || "failed",
+    // Squad reports the amount in the lowest unit (kobo), matching what we sent at
+    // initiate — so billing's `amount / 100` gives naira, exactly as with Paystack.
+    amount: Number(d.transaction_amount ?? d.amount ?? 0),
+    currency: d.transaction_currency_id ?? d.currency ?? "NGN",
+    channel: d.payment_information?.payment_type ?? d.transaction_type ?? d.channel ?? null,
+    paidAt: d.created_at ? new Date(d.created_at) : d.transaction_date ? new Date(d.transaction_date) : null,
+    metadata: (d.metadata as Record<string, unknown>) ?? {},
+    raw: d,
+  };
+}
+
+/** Calls Squad with the given key to confirm it is live and readable. A verify
+ *  for a nonexistent reference authenticates the key without moving money:
+ *  Squad answers 401/403 for a bad key, and 200/404 ("not found") for a good one. */
+export async function testSecretKey(secretKey: string) {
+  const res = await fetch(`${baseFor(secretKey)}/transaction/verify/zph_keycheck_0000000000`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res) return { ok: false as const, message: "Could not reach Squad." };
+  if (res.status === 401 || res.status === 403) return { ok: false as const, message: "Squad rejected that key." };
+  return { ok: true as const, message: "Key accepted by Squad." };
 }
 
 /**
- * Paystack signs webhook bodies with HMAC-SHA512 using the secret key.
- * Compare against the raw body text — re-serializing JSON changes the digest.
+ * Squad signs webhook bodies with HMAC-SHA512 using the secret key. Compare
+ * against the raw body text — re-serializing JSON changes the digest. The
+ * header is `x-squad-encrypted-body` (older docs: `x-squad-signature`); the
+ * route passes whichever is present. Hex case is normalised before comparing.
  */
 export async function verifyWebhookSignature(rawBody: string, signature: string | null) {
   if (!signature) return false;
 
-  const expected = createHmac("sha512", await requireSecretKey()).update(rawBody).digest("hex");
+  const { secretKey } = await requireCreds();
+  const expected = createHmac("sha512", secretKey).update(rawBody).digest("hex");
   const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
+  const b = Buffer.from(signature.trim().toLowerCase());
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }

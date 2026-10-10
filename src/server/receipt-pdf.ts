@@ -1,7 +1,7 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type RGB } from "pdf-lib";
 import type { InvoiceDocument } from "@/lib/invoice";
-import { formatCurrency } from "@/lib/paystack";
+import { formatCurrency } from "@/lib/squad";
 
 const INK = rgb(0.06, 0.09, 0.16);
 const MUTED = rgb(0.4, 0.45, 0.52);
